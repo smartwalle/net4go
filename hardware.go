@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrFailedToObtainHardwareAddr = errors.New("failed to obtain ip address")
+	ErrFailedToObtainHardwareAddr = errors.New("failed to obtain hardware address")
 )
 
 func GetHardwareAddr() (string, error) {
