@@ -167,10 +167,6 @@ func (this *Conn) run() {
 	go this.handle(w)
 
 	w.Wait()
-
-	if this.handler != nil {
-		this.handler.OnConnect(this)
-	}
 }
 
 func (this *Conn) read(w *sync.WaitGroup) {
