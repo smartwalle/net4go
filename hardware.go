@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	ErrFailedToObtainHardwareAddr = errors.New("failed to obtain hardware address")
+	ErrFailedToObtainHardwareAddr = errors.New("net4go: failed to obtain hardware address")
 )
 
 func GetHardwareAddr() (string, error) {

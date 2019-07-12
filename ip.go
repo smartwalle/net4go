@@ -2,14 +2,30 @@ package net4go
 
 import (
 	"errors"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 )
 
 var (
-	ErrFailedToObtainIP = errors.New("failed to obtain ip address")
+	ErrFailedToObtainIP = errors.New("net4go: failed to obtain ip address")
 )
+
+func GetExternalIP() (string, error) {
+	rsp, err := http.Get("http://myexternalip.com/raw")
+	if rsp != nil {
+		defer rsp.Body.Close()
+	}
+	if err != nil {
+		return "", err
+	}
+	content, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(content)), nil
+}
 
 func GetInternalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
