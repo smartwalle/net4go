@@ -215,14 +215,11 @@ func (this *Conn) write(w *sync.WaitGroup) {
 		case <-this.closeChan:
 			return
 		case p, ok := <-this.sendChan:
-			if this.IsClosed() || ok == false {
+			if ok == false {
 				return
 			}
-			if this.writeTimeout > 0 {
-				this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
-			}
-			_, err := this.conn.Write(p.Serialize())
-			if err != nil {
+
+			if err = this.WritePacket(p); err != nil {
 				return
 			}
 		}
@@ -283,7 +280,9 @@ func (this *Conn) WritePacket(p Packet) (err error) {
 		return ErrConnClosed
 	}
 
-	this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
+	if this.writeTimeout > 0 {
+		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
+	}
 	_, err = this.conn.Write(p.Serialize())
 	return err
 }
