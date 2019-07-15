@@ -187,7 +187,7 @@ func (this *Conn) read(w *sync.WaitGroup) {
 			if this.readTimeout > 0 {
 				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
 			}
-			p, err = this.protocol.ReadPacket(this.conn)
+			p, err = this.protocol.Unmarshal(this.conn)
 			if err != nil {
 				return
 			}
@@ -283,7 +283,7 @@ func (this *Conn) WritePacket(p Packet) (err error) {
 	if this.writeTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 	}
-	_, err = this.conn.Write(p.Serialize())
+	_, err = this.conn.Write(this.protocol.Marshal(p))
 	return err
 }
 
