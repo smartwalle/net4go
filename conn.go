@@ -122,6 +122,10 @@ func (this *Conn) Conn() net.Conn {
 	return this.conn
 }
 
+func (this *Conn) SetHandler(handler Handler) {
+	this.handler = handler
+}
+
 func (this *Conn) Set(key string, value interface{}) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
