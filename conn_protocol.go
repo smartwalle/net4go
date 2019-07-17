@@ -6,15 +6,23 @@ import (
 )
 
 type Protocol interface {
+	// Marshal 把满足 Packet 接口的对象转换为 []byte
+	Marshal(p Packet) []byte
+
 	// Unmarshal 从 io.Reader 读取数据，转换为相应的满足 Packet 接口的对象
 	// 具体的转换规则需要由开发者自己实现
 	Unmarshal(r io.Reader) (Packet, error)
-
-	// Marshal 把满足 Packet 接口的对象转换为 []byte
-	Marshal(p Packet) []byte
 }
 
 type DefaultProtocol struct {
+}
+
+func (this *DefaultProtocol) Marshal(p Packet) []byte {
+	var pData = p.Marshal()
+	var data = make([]byte, 4+len(pData))
+	binary.BigEndian.PutUint32(data[0:4], uint32(len(pData)))
+	copy(data[4:], pData)
+	return data
 }
 
 func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
@@ -29,15 +37,9 @@ func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
 		return nil, err
 	}
 
-	var pType = binary.BigEndian.Uint16(buff[:2])
-
-	return NewDefaultPacket(pType, buff[2:]), nil
-}
-
-func (this *DefaultProtocol) Marshal(p Packet) []byte {
-	var pData = p.Marshal()
-	var data = make([]byte, 4+len(pData))
-	binary.BigEndian.PutUint32(data[0:4], uint32(len(pData)))
-	copy(data[4:], pData)
-	return data
+	var p = &DefaultPacket{}
+	if err := p.Unmarshal(buff); err != nil {
+		return nil, err
+	}
+	return p, nil
 }

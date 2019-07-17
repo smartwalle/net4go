@@ -4,6 +4,8 @@ import "encoding/binary"
 
 type Packet interface {
 	Marshal() []byte
+
+	Unmarshal([]byte) error
 }
 
 type DefaultPacket struct {
@@ -16,6 +18,12 @@ func (this *DefaultPacket) Marshal() []byte {
 	binary.BigEndian.PutUint16(data[0:2], this.pType)
 	copy(data[2:], this.data)
 	return data
+}
+
+func (this *DefaultPacket) Unmarshal(data []byte) error {
+	this.pType = binary.BigEndian.Uint16(data[:2])
+	this.data = data[2:]
+	return nil
 }
 
 func (this *DefaultPacket) GetData() []byte {
