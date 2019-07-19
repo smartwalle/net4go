@@ -242,7 +242,7 @@ func (this *Conn) handle(w *sync.WaitGroup) {
 		case <-this.closeChan:
 			return
 		case p, ok := <-this.receiveChan:
-			if this.IsClosed() || ok == false {
+			if ok == false {
 				return
 			}
 
@@ -298,9 +298,13 @@ func (this *Conn) IsClosed() bool {
 func (this *Conn) close(err error) {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.closeFlag, 1)
-		close(this.closeChan)
 		close(this.receiveChan)
 		close(this.sendChan)
+		close(this.closeChan)
+
+		this.receiveChan = nil
+		this.sendChan = nil
+
 		this.conn.Close()
 		if this.handler != nil {
 			this.handler.OnClose(this, err)
