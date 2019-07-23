@@ -312,7 +312,43 @@ func (this *Conn) close(err error) {
 	})
 }
 
+// net.Conn interface
+
+func (this *Conn) Read(p []byte) (n int, err error) {
+	if this.conn == nil {
+		return 0, ErrConnClosed
+	}
+	return this.conn.Read(p)
+}
+
+func (this *Conn) Write(b []byte) (n int, err error) {
+	if this.conn == nil {
+		return 0, ErrConnClosed
+	}
+	return this.conn.Write(b)
+}
+
 func (this *Conn) Close() error {
 	this.close(nil)
 	return nil
+}
+
+func (this *Conn) LocalAddr() net.Addr {
+	return this.conn.LocalAddr()
+}
+
+func (this *Conn) RemoteAddr() net.Addr {
+	return this.conn.RemoteAddr()
+}
+
+func (this *Conn) SetDeadline(t time.Time) error {
+	return this.conn.SetDeadline(t)
+}
+
+func (this *Conn) SetReadDeadline(t time.Time) error {
+	return this.conn.SetReadDeadline(t)
+}
+
+func (this *Conn) SetWriteDeadline(t time.Time) error {
+	return this.conn.SetWriteDeadline(t)
 }
