@@ -52,7 +52,7 @@ func WithReadTimeout(timeout time.Duration) Option {
 	})
 }
 
-func WithWriteBufferSize(size int) Option {
+func WithWriteBuffer(size int) Option {
 	return OptionFunc(func(c *Conn) {
 		if size <= 0 {
 			size = kDefaultWriteBuffer
@@ -61,7 +61,7 @@ func WithWriteBufferSize(size int) Option {
 	})
 }
 
-func WithReadBufferSize(size int) Option {
+func WithReadBuffer(size int) Option {
 	return OptionFunc(func(c *Conn) {
 		if size <= 0 {
 			size = kDefaultReadBuffer
