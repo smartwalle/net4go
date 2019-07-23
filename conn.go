@@ -18,9 +18,9 @@ const (
 
 	kDefaultReadTimeout = 15 * time.Second
 
-	kDefaultWriteLimit = 16
+	kDefaultWriteBuffer = 16
 
-	kDefaultReadLimit = 16
+	kDefaultReadBuffer = 16
 )
 
 // --------------------------------------------------------------------------------
@@ -52,21 +52,21 @@ func WithReadTimeout(timeout time.Duration) Option {
 	})
 }
 
-func WithWriteLimit(limit int) Option {
+func WithWriteBufferSize(size int) Option {
 	return OptionFunc(func(c *Conn) {
-		if limit <= 0 {
-			limit = kDefaultWriteLimit
+		if size <= 0 {
+			size = kDefaultWriteBuffer
 		}
-		c.writeLimit = limit
+		c.writeBufferSize = size
 	})
 }
 
-func WithReadLimit(limit int) Option {
+func WithReadBufferSize(size int) Option {
 	return OptionFunc(func(c *Conn) {
-		if limit <= 0 {
-			limit = kDefaultReadLimit
+		if size <= 0 {
+			size = kDefaultReadBuffer
 		}
-		c.readLimit = limit
+		c.readBufferSize = size
 	})
 }
 
@@ -84,14 +84,14 @@ type Conn struct {
 	closeOnce sync.Once
 	closeChan chan struct{}
 
-	sendChan    chan Packet
-	receiveChan chan Packet
+	writeBufferSize int
+	readBufferSize  int
+
+	writeBuffer chan Packet
+	readBuffer  chan Packet
 
 	writeTimeout time.Duration
 	readTimeout  time.Duration
-
-	writeLimit int
-	readLimit  int
 }
 
 func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) *Conn {
@@ -102,16 +102,16 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 
 	nc.writeTimeout = kDefaultWriteTimeout
 	nc.readTimeout = kDefaultReadTimeout
-	nc.writeLimit = kDefaultWriteLimit
-	nc.readLimit = kDefaultReadLimit
+	nc.writeBufferSize = kDefaultWriteBuffer
+	nc.readBufferSize = kDefaultReadBuffer
 
 	for _, opt := range opts {
 		opt.Apply(nc)
 	}
 
 	nc.closeChan = make(chan struct{})
-	nc.sendChan = make(chan Packet, nc.writeLimit)
-	nc.receiveChan = make(chan Packet, nc.readLimit)
+	nc.writeBuffer = make(chan Packet, nc.writeBufferSize)
+	nc.readBuffer = make(chan Packet, nc.readBufferSize)
 
 	nc.run()
 
@@ -197,7 +197,7 @@ func (this *Conn) read(w *sync.WaitGroup) {
 			}
 			if p != nil {
 				select {
-				case this.receiveChan <- p:
+				case this.readBuffer <- p:
 				default:
 				}
 			}
@@ -218,7 +218,7 @@ func (this *Conn) write(w *sync.WaitGroup) {
 		select {
 		case <-this.closeChan:
 			return
-		case p, ok := <-this.sendChan:
+		case p, ok := <-this.writeBuffer:
 			if ok == false {
 				return
 			}
@@ -241,7 +241,7 @@ func (this *Conn) handle(w *sync.WaitGroup) {
 		select {
 		case <-this.closeChan:
 			return
-		case p, ok := <-this.receiveChan:
+		case p, ok := <-this.readBuffer:
 			if ok == false {
 				return
 			}
@@ -262,7 +262,7 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 
 	if timeout == 0 {
 		select {
-		case this.sendChan <- p:
+		case this.writeBuffer <- p:
 			return nil
 		default:
 			return ErrWriteFailed
@@ -270,7 +270,7 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 	}
 
 	select {
-	case this.sendChan <- p:
+	case this.writeBuffer <- p:
 		return nil
 	case <-this.closeChan:
 		return ErrConnClosed
@@ -298,12 +298,12 @@ func (this *Conn) IsClosed() bool {
 func (this *Conn) close(err error) {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.closeFlag, 1)
-		close(this.receiveChan)
-		close(this.sendChan)
+		close(this.readBuffer)
+		close(this.writeBuffer)
 		close(this.closeChan)
 
-		this.receiveChan = nil
-		this.sendChan = nil
+		this.readBuffer = nil
+		this.writeBuffer = nil
 
 		this.conn.Close()
 		if this.handler != nil {
