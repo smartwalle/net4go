@@ -3,7 +3,7 @@ package net4go
 import "encoding/binary"
 
 type Packet interface {
-	Marshal() []byte
+	Marshal() ([]byte, error)
 
 	Unmarshal([]byte) error
 }
@@ -13,11 +13,11 @@ type DefaultPacket struct {
 	data  []byte
 }
 
-func (this *DefaultPacket) Marshal() []byte {
+func (this *DefaultPacket) Marshal() ([]byte, error) {
 	var data = make([]byte, 2+len(this.data))
 	binary.BigEndian.PutUint16(data[0:2], this.pType)
 	copy(data[2:], this.data)
-	return data
+	return data, nil
 }
 
 func (this *DefaultPacket) Unmarshal(data []byte) error {

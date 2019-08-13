@@ -287,7 +287,13 @@ func (this *Conn) WritePacket(p Packet) (err error) {
 	if this.writeTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 	}
-	_, err = this.conn.Write(this.protocol.Marshal(p))
+
+	pData, err := this.protocol.Marshal(p)
+	if err != nil {
+		return err
+	}
+
+	_, err = this.conn.Write(pData)
 	return err
 }
 

@@ -7,7 +7,7 @@ import (
 
 type Protocol interface {
 	// Marshal 把满足 Packet 接口的对象转换为 []byte
-	Marshal(p Packet) []byte
+	Marshal(p Packet) ([]byte, error)
 
 	// Unmarshal 从 io.Reader 读取数据，转换为相应的满足 Packet 接口的对象
 	// 具体的转换规则需要由开发者自己实现
@@ -17,12 +17,15 @@ type Protocol interface {
 type DefaultProtocol struct {
 }
 
-func (this *DefaultProtocol) Marshal(p Packet) []byte {
-	var pData = p.Marshal()
+func (this *DefaultProtocol) Marshal(p Packet) ([]byte, error) {
+	var pData, err = p.Marshal()
+	if err != nil {
+		return nil, err
+	}
 	var data = make([]byte, 4+len(pData))
 	binary.BigEndian.PutUint32(data[0:4], uint32(len(pData)))
 	copy(data[4:], pData)
-	return data
+	return data, nil
 }
 
 func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
