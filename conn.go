@@ -87,7 +87,7 @@ type Conn struct {
 	writeBufferSize int
 	readBufferSize  int
 
-	writeBuffer chan Packet
+	writeBuffer chan []byte
 	readBuffer  chan Packet
 
 	writeTimeout time.Duration
@@ -110,7 +110,7 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	}
 
 	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan Packet, nc.writeBufferSize)
+	nc.writeBuffer = make(chan []byte, nc.writeBufferSize)
 	nc.readBuffer = make(chan Packet, nc.readBufferSize)
 
 	nc.run()
@@ -223,7 +223,7 @@ func (this *Conn) write(w *sync.WaitGroup) {
 				return
 			}
 
-			if err = this.WritePacket(p); err != nil {
+			if _, err = this.Write(p); err != nil {
 				return
 			}
 		}
@@ -260,9 +260,14 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 		return ErrConnClosed
 	}
 
+	pData, err := this.protocol.Marshal(p)
+	if err != nil {
+		return err
+	}
+
 	if timeout == 0 {
 		select {
-		case this.writeBuffer <- p:
+		case this.writeBuffer <- pData:
 			return nil
 		default:
 			return ErrWriteFailed
@@ -270,7 +275,7 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 	}
 
 	select {
-	case this.writeBuffer <- p:
+	case this.writeBuffer <- pData:
 		return nil
 	case <-this.closeChan:
 		return ErrConnClosed
@@ -280,20 +285,11 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 }
 
 func (this *Conn) WritePacket(p Packet) (err error) {
-	if this.IsClosed() {
-		return ErrConnClosed
-	}
-
-	if this.writeTimeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
-	}
-
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
 	}
-
-	_, err = this.conn.Write(pData)
+	_, err = this.Write(pData)
 	return err
 }
 
