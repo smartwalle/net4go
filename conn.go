@@ -321,6 +321,10 @@ func (this *Conn) close(err error) {
 // net.Conn interface
 
 func (this *Conn) Read(p []byte) (n int, err error) {
+	if this.IsClosed() {
+		return 0, ErrConnClosed
+	}
+
 	if this.conn == nil {
 		return 0, ErrConnClosed
 	}
@@ -328,9 +332,18 @@ func (this *Conn) Read(p []byte) (n int, err error) {
 }
 
 func (this *Conn) Write(b []byte) (n int, err error) {
+	if this.IsClosed() {
+		return 0, ErrConnClosed
+	}
+
 	if this.conn == nil {
 		return 0, ErrConnClosed
 	}
+
+	if this.writeTimeout > 0 {
+		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
+	}
+
 	return this.conn.Write(b)
 }
 
