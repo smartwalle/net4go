@@ -168,7 +168,7 @@ func (this *Conn) run() {
 
 	go this.write(w)
 	go this.read(w)
-	go this.handle(w)
+	go this.dispatch(w)
 
 	w.Wait()
 }
@@ -230,7 +230,7 @@ func (this *Conn) write(w *sync.WaitGroup) {
 	}
 }
 
-func (this *Conn) handle(w *sync.WaitGroup) {
+func (this *Conn) dispatch(w *sync.WaitGroup) {
 	defer func() {
 		this.close(nil)
 	}()
