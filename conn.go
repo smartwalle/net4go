@@ -311,6 +311,10 @@ func (this *Conn) close(err error) {
 		if this.handler != nil {
 			this.handler.OnClose(this, err)
 		}
+
+		this.data = nil
+		this.protocol = nil
+		this.handler = nil
 	})
 }
 
