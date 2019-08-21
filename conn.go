@@ -128,34 +128,34 @@ func (this *Conn) SetHandler(handler Handler) {
 
 func (this *Conn) Set(key string, value interface{}) {
 	this.mu.Lock()
-	defer this.mu.Unlock()
-
-	if value != nil {
-		if this.data == nil {
-			this.data = make(map[string]interface{})
-		}
-		this.data[key] = value
+	if this.data == nil {
+		this.data = make(map[string]interface{})
 	}
+	this.data[key] = value
+	this.mu.Unlock()
 }
 
 func (this *Conn) Get(key string) interface{} {
 	this.mu.Lock()
-	defer this.mu.Unlock()
 
 	if this.data == nil {
+		this.mu.Unlock()
 		return nil
 	}
-	return this.data[key]
+	var value = this.data[key]
+	this.mu.Unlock()
+	return value
 }
 
 func (this *Conn) Del(key string) {
 	this.mu.Lock()
-	defer this.mu.Unlock()
 
 	if this.data == nil {
+		this.mu.Unlock()
 		return
 	}
 	delete(this.data, key)
+	this.mu.Unlock()
 }
 
 func (this *Conn) run() {
@@ -176,24 +176,22 @@ func (this *Conn) run() {
 func (this *Conn) read(w *sync.WaitGroup) {
 	var err error
 
-	defer func() {
-		this.close(err)
-	}()
-
 	w.Done()
 
 	var p Packet
+
+ReadFor:
 	for {
 		select {
 		case <-this.closeChan:
-			return
+			break
 		default:
 			if this.readTimeout > 0 {
 				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
 			}
 			p, err = this.protocol.Unmarshal(this.conn)
 			if err != nil {
-				return
+				break ReadFor
 			}
 			if p != nil {
 				select {
@@ -203,52 +201,50 @@ func (this *Conn) read(w *sync.WaitGroup) {
 			}
 		}
 	}
+
+	this.close(err)
 }
 
 func (this *Conn) write(w *sync.WaitGroup) {
 	var err error
 
-	defer func() {
-		this.close(err)
-	}()
-
 	w.Done()
 
+WriteFor:
 	for {
 		select {
 		case <-this.closeChan:
-			return
+			break WriteFor
 		case p, ok := <-this.writeBuffer:
 			if ok == false {
-				return
+				break WriteFor
 			}
 
 			if _, err = this.Write(p); err != nil {
-				return
+				break WriteFor
 			}
 		}
 	}
+
+	this.close(err)
 }
 
 func (this *Conn) dispatch(w *sync.WaitGroup) {
-	defer func() {
-		this.close(nil)
-	}()
-
 	w.Done()
 
+DispatchFor:
 	for {
 		select {
 		case <-this.closeChan:
-			return
+			break DispatchFor
 		case p, ok := <-this.readBuffer:
 			if ok == false {
-				return
+				break DispatchFor
 			}
 
 			if this.handler != nil {
 				if this.handler.OnMessage(this, p) == false {
-					return
+					break DispatchFor
 				}
 			}
 		}
