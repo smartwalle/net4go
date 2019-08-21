@@ -285,6 +285,10 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 }
 
 func (this *Conn) WritePacket(p Packet) (err error) {
+	if this.IsClosed() {
+		return ErrConnClosed
+	}
+
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
