@@ -74,7 +74,6 @@ type Conn struct {
 	closeChan chan struct{}
 
 	writeBufferSize int
-	readBufferSize  int
 
 	writeBuffer chan []byte
 
@@ -108,7 +107,7 @@ func (this *Conn) Conn() net.Conn {
 	return this.conn
 }
 
-func (this *Conn) SetHandler(handler Handler) {
+func (this *Conn) UpdateHandler(handler Handler) {
 	this.handler = handler
 }
 
