@@ -159,10 +159,9 @@ func (this *Conn) run() {
 }
 
 func (this *Conn) read(w *sync.WaitGroup) {
-	var err error
-
 	w.Done()
 
+	var err error
 	var p Packet
 
 ReadFor:
@@ -190,9 +189,9 @@ ReadFor:
 }
 
 func (this *Conn) write(w *sync.WaitGroup) {
-	var err error
-
 	w.Done()
+
+	var err error
 
 WriteFor:
 	for {
