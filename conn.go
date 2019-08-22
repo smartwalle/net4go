@@ -19,8 +19,6 @@ const (
 	kDefaultReadTimeout = 15 * time.Second
 
 	kDefaultWriteBuffer = 16
-
-	kDefaultReadBuffer = 16
 )
 
 // --------------------------------------------------------------------------------
@@ -61,15 +59,6 @@ func WithWriteBuffer(size int) Option {
 	})
 }
 
-func WithReadBuffer(size int) Option {
-	return OptionFunc(func(c *Conn) {
-		if size <= 0 {
-			size = kDefaultReadBuffer
-		}
-		c.readBufferSize = size
-	})
-}
-
 // --------------------------------------------------------------------------------
 type Conn struct {
 	conn net.Conn
@@ -88,7 +77,6 @@ type Conn struct {
 	readBufferSize  int
 
 	writeBuffer chan []byte
-	readBuffer  chan Packet
 
 	writeTimeout time.Duration
 	readTimeout  time.Duration
@@ -103,7 +91,6 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	nc.writeTimeout = kDefaultWriteTimeout
 	nc.readTimeout = kDefaultReadTimeout
 	nc.writeBufferSize = kDefaultWriteBuffer
-	nc.readBufferSize = kDefaultReadBuffer
 
 	for _, opt := range opts {
 		opt.Apply(nc)
@@ -111,7 +98,6 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 
 	nc.closeChan = make(chan struct{})
 	nc.writeBuffer = make(chan []byte, nc.writeBufferSize)
-	nc.readBuffer = make(chan Packet, nc.readBufferSize)
 
 	nc.run()
 
@@ -164,11 +150,10 @@ func (this *Conn) run() {
 	}
 
 	var w = &sync.WaitGroup{}
-	w.Add(3)
+	w.Add(2)
 
 	go this.write(w)
 	go this.read(w)
-	go this.dispatch(w)
 
 	w.Wait()
 }
@@ -193,10 +178,9 @@ ReadFor:
 			if err != nil {
 				break ReadFor
 			}
-			if p != nil {
-				select {
-				case this.readBuffer <- p:
-				default:
+			if p != nil && this.handler != nil {
+				if this.handler.OnMessage(this, p) == false {
+					break ReadFor
 				}
 			}
 		}
@@ -227,28 +211,6 @@ WriteFor:
 	}
 
 	this.close(err)
-}
-
-func (this *Conn) dispatch(w *sync.WaitGroup) {
-	w.Done()
-
-DispatchFor:
-	for {
-		select {
-		case <-this.closeChan:
-			break DispatchFor
-		case p, ok := <-this.readBuffer:
-			if ok == false {
-				break DispatchFor
-			}
-
-			if this.handler != nil {
-				if this.handler.OnMessage(this, p) == false {
-					break DispatchFor
-				}
-			}
-		}
-	}
 }
 
 func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
@@ -300,11 +262,9 @@ func (this *Conn) IsClosed() bool {
 func (this *Conn) close(err error) {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.closeFlag, 1)
-		close(this.readBuffer)
 		close(this.writeBuffer)
 		close(this.closeChan)
 
-		this.readBuffer = nil
 		this.writeBuffer = nil
 
 		this.conn.Close()
