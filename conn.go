@@ -61,8 +61,6 @@ func WithWriteBuffer(size int) Option {
 
 // --------------------------------------------------------------------------------
 type Conn interface {
-	net.Conn
-
 	Conn() net.Conn
 
 	UpdateHandler(handler Handler)
@@ -78,6 +76,21 @@ type Conn interface {
 	WritePacket(p Packet) (err error)
 
 	IsClosed() bool
+
+	// net.Conn 除去 Read()
+	Write(b []byte) (n int, err error)
+
+	Close() error
+
+	LocalAddr() net.Addr
+
+	RemoteAddr() net.Addr
+
+	SetDeadline(t time.Time) error
+
+	SetReadDeadline(t time.Time) error
+
+	SetWriteDeadline(t time.Time) error
 }
 
 // --------------------------------------------------------------------------------
@@ -299,16 +312,16 @@ func (this *rawConn) close(err error) {
 
 // net.Conn interface
 
-func (this *rawConn) Read(p []byte) (n int, err error) {
-	if this.IsClosed() {
-		return 0, ErrConnClosed
-	}
-
-	if this.conn == nil {
-		return 0, ErrConnClosed
-	}
-	return this.conn.Read(p)
-}
+//func (this *rawConn) Read(p []byte) (n int, err error) {
+//	if this.IsClosed() {
+//		return 0, ErrConnClosed
+//	}
+//
+//	if this.conn == nil {
+//		return 0, ErrConnClosed
+//	}
+//	return this.conn.Read(p)
+//}
 
 func (this *rawConn) Write(b []byte) (n int, err error) {
 	if this.IsClosed() {
