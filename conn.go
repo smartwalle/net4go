@@ -23,17 +23,17 @@ const (
 
 // --------------------------------------------------------------------------------
 type Option interface {
-	Apply(conn *Conn)
+	Apply(conn *rawConn)
 }
 
-type OptionFunc func(*Conn)
+type OptionFunc func(*rawConn)
 
-func (f OptionFunc) Apply(c *Conn) {
+func (f OptionFunc) Apply(c *rawConn) {
 	f(c)
 }
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *Conn) {
+	return OptionFunc(func(c *rawConn) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -42,7 +42,7 @@ func WithWriteTimeout(timeout time.Duration) Option {
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *Conn) {
+	return OptionFunc(func(c *rawConn) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -51,7 +51,7 @@ func WithReadTimeout(timeout time.Duration) Option {
 }
 
 func WithWriteBuffer(size int) Option {
-	return OptionFunc(func(c *Conn) {
+	return OptionFunc(func(c *rawConn) {
 		if size <= 0 {
 			size = kDefaultWriteBuffer
 		}
@@ -60,7 +60,28 @@ func WithWriteBuffer(size int) Option {
 }
 
 // --------------------------------------------------------------------------------
-type Conn struct {
+type Conn interface {
+	net.Conn
+
+	Conn() net.Conn
+
+	UpdateHandler(handler Handler)
+
+	Set(key string, value interface{})
+
+	Get(key string) interface{}
+
+	Del(key string)
+
+	AsyncWritePacket(p Packet, timeout time.Duration) (err error)
+
+	WritePacket(p Packet) (err error)
+
+	IsClosed() bool
+}
+
+// --------------------------------------------------------------------------------
+type rawConn struct {
 	conn net.Conn
 
 	mu   sync.Mutex
@@ -81,8 +102,8 @@ type Conn struct {
 	readTimeout  time.Duration
 }
 
-func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) *Conn {
-	var nc = &Conn{}
+func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
+	var nc = &rawConn{}
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
@@ -103,15 +124,15 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	return nc
 }
 
-func (this *Conn) Conn() net.Conn {
+func (this *rawConn) Conn() net.Conn {
 	return this.conn
 }
 
-func (this *Conn) UpdateHandler(handler Handler) {
+func (this *rawConn) UpdateHandler(handler Handler) {
 	this.handler = handler
 }
 
-func (this *Conn) Set(key string, value interface{}) {
+func (this *rawConn) Set(key string, value interface{}) {
 	this.mu.Lock()
 	if this.data == nil {
 		this.data = make(map[string]interface{})
@@ -120,7 +141,7 @@ func (this *Conn) Set(key string, value interface{}) {
 	this.mu.Unlock()
 }
 
-func (this *Conn) Get(key string) interface{} {
+func (this *rawConn) Get(key string) interface{} {
 	this.mu.Lock()
 
 	if this.data == nil {
@@ -132,7 +153,7 @@ func (this *Conn) Get(key string) interface{} {
 	return value
 }
 
-func (this *Conn) Del(key string) {
+func (this *rawConn) Del(key string) {
 	this.mu.Lock()
 
 	if this.data == nil {
@@ -143,7 +164,7 @@ func (this *Conn) Del(key string) {
 	this.mu.Unlock()
 }
 
-func (this *Conn) run() {
+func (this *rawConn) run() {
 	if this.IsClosed() {
 		return
 	}
@@ -157,7 +178,7 @@ func (this *Conn) run() {
 	w.Wait()
 }
 
-func (this *Conn) read(w *sync.WaitGroup) {
+func (this *rawConn) read(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
@@ -187,7 +208,7 @@ ReadFor:
 	this.close(err)
 }
 
-func (this *Conn) write(w *sync.WaitGroup) {
+func (this *rawConn) write(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
@@ -211,7 +232,7 @@ WriteFor:
 	this.close(err)
 }
 
-func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
+func (this *rawConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
 	if this.IsClosed() {
 		return ErrConnClosed
 	}
@@ -240,7 +261,7 @@ func (this *Conn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) 
 	}
 }
 
-func (this *Conn) WritePacket(p Packet) (err error) {
+func (this *rawConn) WritePacket(p Packet) (err error) {
 	if this.IsClosed() {
 		return ErrConnClosed
 	}
@@ -253,11 +274,11 @@ func (this *Conn) WritePacket(p Packet) (err error) {
 	return err
 }
 
-func (this *Conn) IsClosed() bool {
+func (this *rawConn) IsClosed() bool {
 	return atomic.LoadInt32(&this.closeFlag) == 1
 }
 
-func (this *Conn) close(err error) {
+func (this *rawConn) close(err error) {
 	this.closeOnce.Do(func() {
 		atomic.StoreInt32(&this.closeFlag, 1)
 		close(this.writeBuffer)
@@ -278,7 +299,7 @@ func (this *Conn) close(err error) {
 
 // net.Conn interface
 
-func (this *Conn) Read(p []byte) (n int, err error) {
+func (this *rawConn) Read(p []byte) (n int, err error) {
 	if this.IsClosed() {
 		return 0, ErrConnClosed
 	}
@@ -289,7 +310,7 @@ func (this *Conn) Read(p []byte) (n int, err error) {
 	return this.conn.Read(p)
 }
 
-func (this *Conn) Write(b []byte) (n int, err error) {
+func (this *rawConn) Write(b []byte) (n int, err error) {
 	if this.IsClosed() {
 		return 0, ErrConnClosed
 	}
@@ -305,27 +326,27 @@ func (this *Conn) Write(b []byte) (n int, err error) {
 	return this.conn.Write(b)
 }
 
-func (this *Conn) Close() error {
+func (this *rawConn) Close() error {
 	this.close(nil)
 	return nil
 }
 
-func (this *Conn) LocalAddr() net.Addr {
+func (this *rawConn) LocalAddr() net.Addr {
 	return this.conn.LocalAddr()
 }
 
-func (this *Conn) RemoteAddr() net.Addr {
+func (this *rawConn) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
 }
 
-func (this *Conn) SetDeadline(t time.Time) error {
+func (this *rawConn) SetDeadline(t time.Time) error {
 	return this.conn.SetDeadline(t)
 }
 
-func (this *Conn) SetReadDeadline(t time.Time) error {
+func (this *rawConn) SetReadDeadline(t time.Time) error {
 	return this.conn.SetReadDeadline(t)
 }
 
-func (this *Conn) SetWriteDeadline(t time.Time) error {
+func (this *rawConn) SetWriteDeadline(t time.Time) error {
 	return this.conn.SetWriteDeadline(t)
 }

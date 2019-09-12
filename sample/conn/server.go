@@ -31,7 +31,7 @@ func main() {
 type ServerHandler struct {
 }
 
-func (this *ServerHandler) OnMessage(c *net4go.Conn, p net4go.Packet) bool {
+func (this *ServerHandler) OnMessage(c net4go.Conn, p net4go.Packet) bool {
 	fmt.Println("OnMessage", p)
 
 	switch v := p.(type) {
@@ -42,6 +42,6 @@ func (this *ServerHandler) OnMessage(c *net4go.Conn, p net4go.Packet) bool {
 	return true
 }
 
-func (this *ServerHandler) OnClose(c *net4go.Conn, err error) {
+func (this *ServerHandler) OnClose(c net4go.Conn, err error) {
 	fmt.Println("OnClose", err)
 }
