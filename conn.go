@@ -105,8 +105,7 @@ type rawConn struct {
 	protocol Protocol
 	handler  Handler
 
-	closeFlag int32
-	closeOnce sync.Once
+	closeFlag uint32
 	closeChan chan struct{}
 
 	writeBufferSize int
@@ -122,6 +121,7 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
+	nc.closeFlag = 0
 
 	nc.writeTimeout = kDefaultWriteTimeout
 	nc.readTimeout = kDefaultReadTimeout
@@ -180,7 +180,7 @@ func (this *rawConn) Del(key string) {
 }
 
 func (this *rawConn) IsClosed() bool {
-	return atomic.LoadInt32(&this.closeFlag) == 1
+	return atomic.LoadUint32(&this.closeFlag) == 1
 }
 
 func (this *rawConn) run() {
@@ -327,8 +327,7 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 }
 
 func (this *rawConn) close(err error) {
-	this.closeOnce.Do(func() {
-		atomic.StoreInt32(&this.closeFlag, 1)
+	if atomic.CompareAndSwapUint32(&this.closeFlag, 0, 1) {
 		close(this.writeBuffer)
 		close(this.closeChan)
 
@@ -342,7 +341,7 @@ func (this *rawConn) close(err error) {
 		this.data = nil
 		this.protocol = nil
 		this.handler = nil
-	})
+	}
 }
 
 func (this *rawConn) Close() error {
