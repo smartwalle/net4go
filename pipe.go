@@ -7,32 +7,32 @@ import (
 	"time"
 )
 
-type Forward struct {
+type Pipe struct {
 	pool         *sync.Pool
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 }
 
-func NewForward(buffSize int, readTimeout, writeTimeout time.Duration) *Forward {
+func NewPipe(buffSize int, readTimeout, writeTimeout time.Duration) *Pipe {
 	if buffSize <= 0 {
 		buffSize = 32 * 1024
 	}
-	var f = &Forward{}
-	f.pool = &sync.Pool{
+	var p = &Pipe{}
+	p.pool = &sync.Pool{
 		New: func() interface{} {
 			return make([]byte, buffSize)
 		},
 	}
-	f.readTimeout = readTimeout
-	f.writeTimeout = writeTimeout
-	return f
+	p.readTimeout = readTimeout
+	p.writeTimeout = writeTimeout
+	return p
 }
 
-func (this *Forward) Bind(c1, c2 net.Conn) (err error) {
+func (this *Pipe) Bind(c1, c2 net.Conn) (err error) {
 	var errorChan = make(chan error, 1)
 
-	go this.forward(errorChan, c1, c2)
-	go this.forward(errorChan, c2, c1)
+	go this.bind(errorChan, c1, c2)
+	go this.bind(errorChan, c2, c1)
 
 	for i := 0; i < 2; i++ {
 		if err = <-errorChan; err != nil {
@@ -42,13 +42,13 @@ func (this *Forward) Bind(c1, c2 net.Conn) (err error) {
 	return nil
 }
 
-func (this *Forward) forward(errorChan chan error, src, dst net.Conn) {
+func (this *Pipe) bind(errorChan chan error, src, dst net.Conn) {
 	var buf = this.pool.Get().([]byte)
-	errorChan <- forward(src, dst, buf, this.readTimeout, this.writeTimeout)
+	errorChan <- pipe(src, dst, buf, this.readTimeout, this.writeTimeout)
 	this.pool.Put(buf)
 }
 
-func forward(src, dst net.Conn, buf []byte, readTimeout, writeTimeout time.Duration) (err error) {
+func pipe(src, dst net.Conn, buf []byte, readTimeout, writeTimeout time.Duration) (err error) {
 	var nr int
 	var nw int
 
