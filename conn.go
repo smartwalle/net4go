@@ -1,7 +1,9 @@
 package net4go
 
 import (
+	"encoding/binary"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -20,6 +22,96 @@ const (
 
 	kDefaultWriteBuffer = 16
 )
+
+// --------------------------------------------------------------------------------
+type Packet interface {
+	Marshal() ([]byte, error)
+
+	Unmarshal([]byte) error
+}
+
+type DefaultPacket struct {
+	pType uint16
+	data  []byte
+}
+
+func (this *DefaultPacket) Marshal() ([]byte, error) {
+	var data = make([]byte, 2+len(this.data))
+	binary.BigEndian.PutUint16(data[0:2], this.pType)
+	copy(data[2:], this.data)
+	return data, nil
+}
+
+func (this *DefaultPacket) Unmarshal(data []byte) error {
+	this.pType = binary.BigEndian.Uint16(data[:2])
+	this.data = data[2:]
+	return nil
+}
+
+func (this *DefaultPacket) GetData() []byte {
+	return this.data
+}
+
+func (this *DefaultPacket) GetType() uint16 {
+	return this.pType
+}
+
+func NewDefaultPacket(pType uint16, data []byte) *DefaultPacket {
+	var p = &DefaultPacket{}
+	p.pType = pType
+	p.data = data
+	return p
+}
+
+// --------------------------------------------------------------------------------
+type Protocol interface {
+	// Marshal 把满足 Packet 接口的对象转换为 []byte
+	Marshal(p Packet) ([]byte, error)
+
+	// Unmarshal 从 io.Reader 读取数据，转换为相应的满足 Packet 接口的对象
+	// 具体的转换规则需要由开发者自己实现
+	Unmarshal(r io.Reader) (Packet, error)
+}
+
+type DefaultProtocol struct {
+}
+
+func (this *DefaultProtocol) Marshal(p Packet) ([]byte, error) {
+	var pData, err = p.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	var data = make([]byte, 4+len(pData))
+	binary.BigEndian.PutUint32(data[0:4], uint32(len(pData)))
+	copy(data[4:], pData)
+	return data, nil
+}
+
+func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
+	var lengthBytes = make([]byte, 4)
+	if _, err := io.ReadFull(r, lengthBytes); err != nil {
+		return nil, err
+	}
+	var length = binary.BigEndian.Uint32(lengthBytes)
+
+	var buff = make([]byte, length)
+	if _, err := io.ReadFull(r, buff); err != nil {
+		return nil, err
+	}
+
+	var p = &DefaultPacket{}
+	if err := p.Unmarshal(buff); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// --------------------------------------------------------------------------------
+type Handler interface {
+	OnMessage(Conn, Packet) bool
+
+	OnClose(Conn, error)
+}
 
 // --------------------------------------------------------------------------------
 type Option interface {
