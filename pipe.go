@@ -3,7 +3,6 @@ package net4go
 import (
 	"io"
 	"net"
-	"sync"
 	"time"
 )
 
@@ -12,21 +11,14 @@ type Pipe interface {
 }
 
 type rawPipe struct {
-	pool         *sync.Pool
+	pool         BufferPool
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 }
 
-func NewPipe(buffSize int, readTimeout, writeTimeout time.Duration) Pipe {
-	if buffSize <= 0 {
-		buffSize = 32 * 1024
-	}
+func NewPipe(bufferSize int, readTimeout, writeTimeout time.Duration) Pipe {
 	var p = &rawPipe{}
-	p.pool = &sync.Pool{
-		New: func() interface{} {
-			return make([]byte, buffSize)
-		},
-	}
+	p.pool = NewBufferPool(bufferSize)
 	p.readTimeout = readTimeout
 	p.writeTimeout = writeTimeout
 	return p
@@ -47,7 +39,7 @@ func (this *rawPipe) Bind(c1, c2 net.Conn) (err error) {
 }
 
 func (this *rawPipe) bind(errorChan chan error, src, dst net.Conn) {
-	var buf = this.pool.Get().([]byte)
+	var buf = this.pool.Get()
 	errorChan <- pipe(src, dst, buf, this.readTimeout, this.writeTimeout)
 	this.pool.Put(buf)
 }

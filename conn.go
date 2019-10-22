@@ -20,7 +20,7 @@ const (
 
 	kDefaultReadTimeout = 15 * time.Second
 
-	kDefaultWriteBuffer = 16
+	kDefaultWriteBufferSize = 16
 )
 
 // --------------------------------------------------------------------------------
@@ -142,10 +142,10 @@ func WithReadTimeout(timeout time.Duration) Option {
 	})
 }
 
-func WithWriteBuffer(size int) Option {
+func WithWriteBufferSize(size int) Option {
 	return OptionFunc(func(c *rawConn) {
 		if size <= 0 {
-			size = kDefaultWriteBuffer
+			size = kDefaultWriteBufferSize
 		}
 		c.writeBufferSize = size
 	})
@@ -217,7 +217,7 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 
 	nc.writeTimeout = kDefaultWriteTimeout
 	nc.readTimeout = kDefaultReadTimeout
-	nc.writeBufferSize = kDefaultWriteBuffer
+	nc.writeBufferSize = kDefaultWriteBufferSize
 
 	for _, opt := range opts {
 		opt.Apply(nc)
