@@ -21,9 +21,10 @@ const (
 	kDefaultReadTimeout = 15 * time.Second
 
 	kDefaultWriteBufferSize = 16
+
+	kDefaultReadLimit = 1024
 )
 
-// --------------------------------------------------------------------------------
 type Packet interface {
 	Marshal() ([]byte, error)
 
@@ -63,7 +64,6 @@ func NewDefaultPacket(pType uint16, data []byte) *DefaultPacket {
 	return p
 }
 
-// --------------------------------------------------------------------------------
 type Protocol interface {
 	// Marshal 把满足 Packet 接口的对象转换为 []byte
 	Marshal(p Packet) ([]byte, error)
@@ -106,26 +106,24 @@ func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
 	return p, nil
 }
 
-// --------------------------------------------------------------------------------
 type Handler interface {
 	OnMessage(Conn, Packet) bool
 
 	OnClose(Conn, error)
 }
 
-// --------------------------------------------------------------------------------
 type Option interface {
-	Apply(conn *rawConn)
+	Apply(conn *connOption)
 }
 
-type OptionFunc func(*rawConn)
+type OptionFunc func(*connOption)
 
-func (f OptionFunc) Apply(c *rawConn) {
+func (f OptionFunc) Apply(c *connOption) {
 	f(c)
 }
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *rawConn) {
+	return OptionFunc(func(c *connOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -134,7 +132,7 @@ func WithWriteTimeout(timeout time.Duration) Option {
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *rawConn) {
+	return OptionFunc(func(c *connOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -143,7 +141,7 @@ func WithReadTimeout(timeout time.Duration) Option {
 }
 
 func WithWriteBufferSize(size int) Option {
-	return OptionFunc(func(c *rawConn) {
+	return OptionFunc(func(c *connOption) {
 		if size <= 0 {
 			size = kDefaultWriteBufferSize
 		}
@@ -151,7 +149,31 @@ func WithWriteBufferSize(size int) Option {
 	})
 }
 
-// --------------------------------------------------------------------------------
+func WithReadLimitSize(size int64) Option {
+	return OptionFunc(func(c *connOption) {
+		if size < 0 {
+			size = kDefaultReadLimit
+		}
+		c.readLimitSize = size
+	})
+}
+
+type connOption struct {
+	writeTimeout    time.Duration
+	readTimeout     time.Duration
+	writeBufferSize int
+	readLimitSize   int64
+}
+
+func newConnOption() *connOption {
+	var opt = &connOption{}
+	opt.writeTimeout = kDefaultWriteTimeout
+	opt.readTimeout = kDefaultReadTimeout
+	opt.writeBufferSize = kDefaultWriteBufferSize
+	opt.readLimitSize = kDefaultReadLimit
+	return opt
+}
+
 type Conn interface {
 	Conn() net.Conn
 
@@ -187,8 +209,9 @@ type Conn interface {
 	SetWriteDeadline(t time.Time) error
 }
 
-// --------------------------------------------------------------------------------
 type rawConn struct {
+	*connOption
+
 	conn net.Conn
 
 	mu   sync.Mutex
@@ -200,27 +223,19 @@ type rawConn struct {
 	closeFlag uint32
 	closeChan chan struct{}
 
-	writeBufferSize int
-
 	writeBuffer chan []byte
-
-	writeTimeout time.Duration
-	readTimeout  time.Duration
 }
 
 func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
 	var nc = &rawConn{}
+	nc.connOption = newConnOption()
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
 	nc.closeFlag = 0
 
-	nc.writeTimeout = kDefaultWriteTimeout
-	nc.readTimeout = kDefaultReadTimeout
-	nc.writeBufferSize = kDefaultWriteBufferSize
-
 	for _, opt := range opts {
-		opt.Apply(nc)
+		opt.Apply(nc.connOption)
 	}
 
 	nc.closeChan = make(chan struct{})
