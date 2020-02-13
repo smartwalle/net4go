@@ -68,8 +68,7 @@ type Protocol interface {
 	// Marshal 把满足 Packet 接口的对象转换为 []byte
 	Marshal(p Packet) ([]byte, error)
 
-	// Unmarshal 从 io.Reader 读取数据，转换为相应的满足 Packet 接口的对象
-	// 具体的转换规则需要由开发者自己实现
+	// Unmarshal 从 io.Reader 读取数据，转换为相应的满足 Packet 接口的对象, 具体的转换规则需要由开发者自己实现
 	Unmarshal(r io.Reader) (Packet, error)
 }
 
