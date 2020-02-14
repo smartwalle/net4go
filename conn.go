@@ -254,35 +254,24 @@ func (this *rawConn) UpdateHandler(handler Handler) {
 }
 
 func (this *rawConn) Set(key string, value interface{}) {
-	this.mu.Lock()
 	if this.data == nil {
 		this.data = make(map[string]interface{})
 	}
 	this.data[key] = value
-	this.mu.Unlock()
 }
 
 func (this *rawConn) Get(key string) interface{} {
-	this.mu.Lock()
-
 	if this.data == nil {
-		this.mu.Unlock()
 		return nil
 	}
-	var value = this.data[key]
-	this.mu.Unlock()
-	return value
+	return this.data[key]
 }
 
 func (this *rawConn) Del(key string) {
-	this.mu.Lock()
-
 	if this.data == nil {
-		this.mu.Unlock()
 		return
 	}
 	delete(this.data, key)
-	this.mu.Unlock()
 }
 
 func (this *rawConn) IsClosed() bool {

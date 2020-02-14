@@ -61,35 +61,24 @@ func (this *wsConn) UpdateHandler(handler Handler) {
 }
 
 func (this *wsConn) Set(key string, value interface{}) {
-	this.mu.Lock()
 	if this.data == nil {
 		this.data = make(map[string]interface{})
 	}
 	this.data[key] = value
-	this.mu.Unlock()
 }
 
 func (this *wsConn) Get(key string) interface{} {
-	this.mu.Lock()
-
 	if this.data == nil {
-		this.mu.Unlock()
 		return nil
 	}
-	var value = this.data[key]
-	this.mu.Unlock()
-	return value
+	return this.data[key]
 }
 
 func (this *wsConn) Del(key string) {
-	this.mu.Lock()
-
 	if this.data == nil {
-		this.mu.Unlock()
 		return
 	}
 	delete(this.data, key)
-	this.mu.Unlock()
 }
 
 func (this *wsConn) IsClosed() bool {
