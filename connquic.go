@@ -25,7 +25,7 @@ func (this *QUICDialer) Dial(network, addr string) (net.Conn, error) {
 }
 
 func (this *QUICDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	udpConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	udpConn, err := net.ListenUDP(network, &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func DialQUIC(addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, 
 	var d QUICDialer
 	d.tlsConf = tlsConf
 	d.config = config
-	return d.DialContext(context.Background(), "", addr)
+	return d.DialContext(context.Background(), "udp", addr)
 }
 
 func DialQUICWithConn(pConn net.PacketConn, addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
