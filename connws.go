@@ -247,6 +247,8 @@ func (this *wsConn) Write(b []byte) (n int, err error) {
 }
 
 func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.writeTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 	}
