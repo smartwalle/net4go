@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrConnClosed  = errors.New("net4go: connection is closed")
+	ErrConnClosed  = errors.New("net4go: connection closed")
 	ErrWriteFailed = errors.New("net4go: write failed")
 )
 
