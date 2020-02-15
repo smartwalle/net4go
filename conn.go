@@ -302,7 +302,7 @@ ReadFor:
 	for {
 		select {
 		case <-this.closeChan:
-			break
+			break ReadFor
 		default:
 			if this.readTimeout > 0 {
 				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
