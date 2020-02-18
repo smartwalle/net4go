@@ -70,6 +70,14 @@ type QUICListener struct {
 	ln quic.Listener
 }
 
+func (this *QUICListener) Close() error {
+	return this.ln.Close()
+}
+
+func (this *QUICListener) Addr() net.Addr {
+	return this.ln.Addr()
+}
+
 func (this *QUICListener) Accept() (net.Conn, error) {
 	sess, err := this.ln.Accept(context.Background())
 	if err != nil {
