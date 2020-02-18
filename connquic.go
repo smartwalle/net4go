@@ -3,7 +3,6 @@ package net4go
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"github.com/lucas-clemente/quic-go"
 	"net"
 )
@@ -49,12 +48,7 @@ func (this *QUICDialer) DialConnContext(ctx context.Context, pConn net.PacketCon
 		return nil, err
 	}
 
-	if stream == nil {
-		sess.Close()
-		return nil, errors.New("closed stream")
-	}
-
-	c := &qSession{sess: sess, Stream: stream}
+	c := &qConn{sess: sess, Stream: stream}
 	return c, nil
 }
 
@@ -74,46 +68,23 @@ func DialQUICWithConn(pConn net.PacketConn, addr string, tlsConf *tls.Config, co
 
 type QUICListener struct {
 	ln              quic.Listener
-	acceptConn      chan *qConn
 	ReadBufferSize  int
 	WriteBufferSize int
 }
 
-func (this *QUICListener) doAccept() {
-	for {
-		sess, err := this.ln.Accept(context.Background())
-		if err != nil {
-			return
-		}
-
-		go func(sess quic.Session) {
-			for {
-				stream, err := sess.AcceptStream(context.Background())
-				if err != nil {
-					sess.Close()
-					return
-				}
-
-				if stream == nil {
-					sess.Close()
-					return
-				}
-
-				this.acceptConn <- &qConn{
-					conn: &qSession{sess: sess, Stream: stream},
-					err:  nil,
-				}
-			}
-		}(sess)
-	}
-}
-
 func (this *QUICListener) Accept() (net.Conn, error) {
-	ac := <-this.acceptConn
-	if ac.err != nil {
-		return nil, ac.err
+
+	sess, err := this.ln.Accept(context.Background())
+	if err != nil {
+		return nil, err
 	}
-	return ac.conn, nil
+	stream, err := sess.AcceptStream(context.Background())
+	if err != nil {
+		sess.Close()
+		return nil, err
+	}
+	c := &qConn{sess: sess, Stream: stream}
+	return c, nil
 }
 
 func ListenQUIC(addr string, tlsConf *tls.Config, config *quic.Config) (*QUICListener, error) {
@@ -122,30 +93,24 @@ func ListenQUIC(addr string, tlsConf *tls.Config, config *quic.Config) (*QUICLis
 		return nil, err
 	}
 
-	ln := &QUICListener{ln: l, acceptConn: make(chan *qConn, 1)}
-	go ln.doAccept()
+	ln := &QUICListener{ln: l}
 	return ln, nil
 }
 
 type qConn struct {
-	conn net.Conn
-	err  error
-}
-
-type qSession struct {
 	sess quic.Session
 	quic.Stream
 }
 
-func (this *qSession) LocalAddr() net.Addr {
+func (this *qConn) LocalAddr() net.Addr {
 	return this.sess.LocalAddr()
 }
 
-func (this *qSession) RemoteAddr() net.Addr {
+func (this *qConn) RemoteAddr() net.Addr {
 	return this.sess.RemoteAddr()
 }
 
-func (this *qSession) Close() error {
+func (this *qConn) Close() error {
 	this.Stream.Close()
 	return this.sess.Close()
 }
