@@ -48,18 +48,18 @@ func (this *QUICDialer) DialConnContext(ctx context.Context, pConn net.PacketCon
 		return nil, err
 	}
 
-	c := &qConn{sess: sess, Stream: stream}
+	c := &QUICConn{sess: sess, Stream: stream}
 	return c, nil
 }
 
-func DialQUIC(addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
+func DialQUICWithAddr(addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
 	var d QUICDialer
 	d.tlsConf = tlsConf
 	d.config = config
 	return d.DialContext(context.Background(), "udp", addr)
 }
 
-func DialQUICWithConn(pConn net.PacketConn, addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
+func DialQUIC(pConn net.PacketConn, addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
 	var d QUICDialer
 	d.tlsConf = tlsConf
 	d.config = config
@@ -69,6 +69,10 @@ func DialQUICWithConn(pConn net.PacketConn, addr string, tlsConf *tls.Config, co
 type QUICListener struct {
 	ln   quic.Listener
 	conn net.PacketConn
+}
+
+func (this *QUICListener) PacketConn() net.PacketConn {
+	return this.conn
 }
 
 func (this *QUICListener) Close() error {
@@ -89,7 +93,7 @@ func (this *QUICListener) Accept() (net.Conn, error) {
 		sess.Close()
 		return nil, err
 	}
-	c := &qConn{sess: sess, Stream: stream}
+	c := &QUICConn{sess: sess, Stream: stream}
 	return c, nil
 }
 
@@ -102,10 +106,10 @@ func ListenQUICWithAddr(addr string, tlsConf *tls.Config, config *quic.Config) (
 	if err != nil {
 		return nil, err
 	}
-	return ListenQUICWithConn(conn, tlsConf, config)
+	return ListenQUIC(conn, tlsConf, config)
 }
 
-func ListenQUICWithConn(conn net.PacketConn, tlsConf *tls.Config, config *quic.Config) (*QUICListener, error) {
+func ListenQUIC(conn net.PacketConn, tlsConf *tls.Config, config *quic.Config) (*QUICListener, error) {
 	l, err := quic.Listen(conn, tlsConf, config)
 	if err != nil {
 		return nil, err
@@ -115,20 +119,20 @@ func ListenQUICWithConn(conn net.PacketConn, tlsConf *tls.Config, config *quic.C
 	return ln, nil
 }
 
-type qConn struct {
+type QUICConn struct {
 	sess quic.Session
 	quic.Stream
 }
 
-func (this *qConn) LocalAddr() net.Addr {
+func (this *QUICConn) LocalAddr() net.Addr {
 	return this.sess.LocalAddr()
 }
 
-func (this *qConn) RemoteAddr() net.Addr {
+func (this *QUICConn) RemoteAddr() net.Addr {
 	return this.sess.RemoteAddr()
 }
 
-func (this *qConn) Close() error {
+func (this *QUICConn) Close() error {
 	this.Stream.Close()
 	return this.sess.Close()
 }
