@@ -67,13 +67,10 @@ func DialQUICWithConn(pConn net.PacketConn, addr string, tlsConf *tls.Config, co
 }
 
 type QUICListener struct {
-	ln              quic.Listener
-	ReadBufferSize  int
-	WriteBufferSize int
+	ln quic.Listener
 }
 
 func (this *QUICListener) Accept() (net.Conn, error) {
-
 	sess, err := this.ln.Accept(context.Background())
 	if err != nil {
 		return nil, err
