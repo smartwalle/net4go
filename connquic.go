@@ -67,7 +67,8 @@ func DialQUICWithConn(pConn net.PacketConn, addr string, tlsConf *tls.Config, co
 }
 
 type QUICListener struct {
-	ln quic.Listener
+	ln   quic.Listener
+	conn net.PacketConn
 }
 
 func (this *QUICListener) Close() error {
@@ -92,13 +93,25 @@ func (this *QUICListener) Accept() (net.Conn, error) {
 	return c, nil
 }
 
-func ListenQUIC(addr string, tlsConf *tls.Config, config *quic.Config) (*QUICListener, error) {
-	l, err := quic.ListenAddr(addr, tlsConf, config)
+func ListenQUICWithAddr(addr string, tlsConf *tls.Config, config *quic.Config) (*QUICListener, error) {
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return nil, err
+	}
+	return ListenQUICWithConn(conn, tlsConf, config)
+}
+
+func ListenQUICWithConn(conn net.PacketConn, tlsConf *tls.Config, config *quic.Config) (*QUICListener, error) {
+	l, err := quic.Listen(conn, tlsConf, config)
 	if err != nil {
 		return nil, err
 	}
 
-	ln := &QUICListener{ln: l}
+	ln := &QUICListener{ln: l, conn: conn}
 	return ln, nil
 }
 
