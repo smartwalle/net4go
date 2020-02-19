@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/smartwalle/net4go"
+	"github.com/smartwalle/net4go/quic"
 	"github.com/smartwalle/net4go/sample/conn/protocol"
 	"time"
 )
@@ -12,7 +13,7 @@ func main() {
 	var p = &protocol.TCPProtocol{}
 	var h = &QUICHandler{}
 
-	c, err := net4go.DialQUICWithAddr("127.0.0.1:6657", &tls.Config{InsecureSkipVerify: true,
+	c, err := quic.DialAddr("127.0.0.1:6657", &tls.Config{InsecureSkipVerify: true,
 		NextProtos: []string{"quic-echo-example"}}, nil)
 	if err != nil {
 		fmt.Println(err)

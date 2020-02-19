@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
+	"github.com/smartwalle/net4go/quic"
 	"github.com/smartwalle/net4go/sample/conn/protocol"
 	"math/big"
 	"net"
@@ -67,7 +68,7 @@ func serveWs(h net4go.Handler) {
 }
 
 func serveQUIC(h net4go.Handler) {
-	l, err := net4go.ListenQUICWithAddr("127.0.0.1:6657", generateTLSConfig(), nil)
+	l, err := quic.ListenAddr("127.0.0.1:6657", generateTLSConfig(), nil)
 	if err != nil {
 		fmt.Println(err)
 		return
