@@ -5,6 +5,7 @@ import (
 	"github.com/smartwalle/net4go"
 	"github.com/smartwalle/net4go/sample/conn/protocol"
 	"net"
+	"os"
 	"time"
 )
 
@@ -12,21 +13,25 @@ func main() {
 	var p = &protocol.TCPProtocol{}
 	var h = &TCPHandler{}
 
-	c, err := net.Dial("tcp", ":6655")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	for i := 0; i < 100; i++ {
+		c, err := net.Dial("tcp", ":6655")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
-	var nConn = net4go.NewConn(c, p, h)
+		var nConn = net4go.NewConn(c, p, h)
 
-	var packet = &protocol.Packet{}
-	packet.Type = 1
-	packet.Message = "来自 TCP"
+		var packet = &protocol.Packet{}
+		packet.Type = 1
+		packet.Message = "来自 TCP"
 
-	for {
-		nConn.WritePacket(packet)
-		time.Sleep(time.Second * 1)
+		go func(nConn net4go.Conn) {
+			for {
+				nConn.WritePacket(packet)
+				time.Sleep(time.Millisecond * 100)
+			}
+		}(nConn)
 	}
 
 	select {}
@@ -42,4 +47,5 @@ func (this *TCPHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) bool {
 
 func (this *TCPHandler) OnClose(conn net4go.Conn, err error) {
 	fmt.Println("OnClose", err)
+	os.Exit(-1)
 }
