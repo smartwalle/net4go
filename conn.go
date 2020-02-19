@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -219,7 +218,7 @@ type rawConn struct {
 	protocol Protocol
 	handler  Handler
 
-	closeFlag uint32
+	isClosed  bool
 	closeChan chan struct{}
 
 	writeBuffer chan []byte
@@ -231,7 +230,7 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
-	nc.closeFlag = 0
+	nc.isClosed = false
 
 	for _, opt := range opts {
 		opt.Apply(nc.connOption)
@@ -275,7 +274,9 @@ func (this *rawConn) Del(key string) {
 }
 
 func (this *rawConn) IsClosed() bool {
-	return atomic.LoadUint32(&this.closeFlag) == 1
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.isClosed
 }
 
 func (this *rawConn) run() {
@@ -311,11 +312,21 @@ ReadFor:
 			if err != nil {
 				break ReadFor
 			}
+			this.mu.Lock()
+			if this.isClosed == true {
+				this.mu.Unlock()
+				break ReadFor
+			}
+
 			if p != nil && this.handler != nil {
-				if this.handler.OnMessage(this, p) == false {
+				var h = this.handler
+				this.mu.Unlock()
+				if h.OnMessage(this, p) == false {
 					break ReadFor
 				}
+				continue ReadFor
 			}
+			this.mu.Unlock()
 		}
 	}
 
@@ -422,21 +433,26 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 }
 
 func (this *rawConn) close(err error) {
-	if atomic.CompareAndSwapUint32(&this.closeFlag, 0, 1) {
-		close(this.writeBuffer)
-		close(this.closeChan)
-
-		this.writeBuffer = nil
-
-		this.conn.Close()
-		if this.handler != nil {
-			this.handler.OnClose(this, err)
-		}
-
-		this.data = nil
-		this.protocol = nil
-		this.handler = nil
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if this.isClosed == true {
+		return
 	}
+
+	this.isClosed = true
+	close(this.writeBuffer)
+	close(this.closeChan)
+
+	this.writeBuffer = nil
+
+	this.conn.Close()
+	if this.handler != nil {
+		this.handler.OnClose(this, err)
+	}
+
+	this.data = nil
+	this.protocol = nil
+	this.handler = nil
 }
 
 func (this *rawConn) Close() error {
