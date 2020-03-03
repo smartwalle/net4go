@@ -188,23 +188,14 @@ WriteFor:
 }
 
 func (this *wsConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
-	if this.IsClosed() || this.conn == nil {
-		return ErrConnClosed
-	}
-
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
 	}
-
 	return this.AsyncWrite(pData, timeout)
 }
 
 func (this *wsConn) WritePacket(p Packet) (err error) {
-	if this.IsClosed() || this.conn == nil {
-		return ErrConnClosed
-	}
-
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -214,10 +205,6 @@ func (this *wsConn) WritePacket(p Packet) (err error) {
 }
 
 func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
-	if this.IsClosed() || this.conn == nil {
-		return ErrConnClosed
-	}
-
 	if timeout == 0 {
 		select {
 		case this.writeBuffer <- b:
@@ -238,9 +225,6 @@ func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
 }
 
 func (this *wsConn) Write(b []byte) (n int, err error) {
-	if this.IsClosed() || this.conn == nil {
-		return 0, ErrConnClosed
-	}
 	if err = this.writeMessage(websocket.TextMessage, b); err != nil {
 		return 0, err
 	}
@@ -250,6 +234,11 @@ func (this *wsConn) Write(b []byte) (n int, err error) {
 func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
+
+	if this.isClosed || this.conn == nil {
+		return ErrConnClosed
+	}
+
 	if this.writeTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 	}
@@ -275,7 +264,7 @@ func (this *wsConn) close(err error) {
 	}
 
 	this.data = nil
-	this.protocol = nil
+	//this.protocol = nil
 	this.handler = nil
 }
 
