@@ -358,9 +358,9 @@ WriteFor:
 }
 
 func (this *rawConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
-	if this.IsClosed() || this.conn == nil {
-		return ErrConnClosed
-	}
+	//if this.IsClosed() || this.conn == nil {
+	//	return ErrConnClosed
+	//}
 
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
@@ -371,9 +371,9 @@ func (this *rawConn) AsyncWritePacket(p Packet, timeout time.Duration) (err erro
 }
 
 func (this *rawConn) WritePacket(p Packet) (err error) {
-	if this.IsClosed() || this.conn == nil {
-		return ErrConnClosed
-	}
+	//if this.IsClosed() || this.conn == nil {
+	//	return ErrConnClosed
+	//}
 
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
@@ -397,9 +397,9 @@ func (this *rawConn) WritePacket(p Packet) (err error) {
 //}
 
 func (this *rawConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
-	if this.IsClosed() || this.conn == nil {
-		return ErrConnClosed
-	}
+	//if this.IsClosed() || this.conn == nil {
+	//	return ErrConnClosed
+	//}
 
 	if timeout == 0 {
 		select {
@@ -421,7 +421,14 @@ func (this *rawConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
 }
 
 func (this *rawConn) Write(b []byte) (n int, err error) {
-	if this.IsClosed() || this.conn == nil {
+	//if this.IsClosed() || this.conn == nil {
+	//	return 0, ErrConnClosed
+	//}
+
+	this.mu.Lock()
+	defer this.mu.Unlock()
+
+	if this.isClosed || this.conn == nil {
 		return 0, ErrConnClosed
 	}
 
@@ -451,7 +458,7 @@ func (this *rawConn) close(err error) {
 	}
 
 	this.data = nil
-	this.protocol = nil
+	//this.protocol = nil
 	this.handler = nil
 }
 
