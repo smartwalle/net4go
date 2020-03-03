@@ -169,7 +169,7 @@ WriteFor:
 			break WriteFor
 		case <-ticker.C:
 			if err = this.writeMessage(websocket.PingMessage, nil); err != nil {
-				return
+				break WriteFor
 			}
 		case p, ok := <-this.writeBuffer:
 			if ok == false {
