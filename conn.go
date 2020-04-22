@@ -299,32 +299,32 @@ func (this *rawConn) read(w *sync.WaitGroup) {
 	var err error
 	var p Packet
 
-ReadFor:
+ReadLoop:
 	for {
 		select {
 		case <-this.closeChan:
-			break ReadFor
+			break ReadLoop
 		default:
 			if this.readTimeout > 0 {
 				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
 			}
 			p, err = this.protocol.Unmarshal(this.conn)
 			if err != nil {
-				break ReadFor
+				break ReadLoop
 			}
 			this.mu.Lock()
 			if this.isClosed == true {
 				this.mu.Unlock()
-				break ReadFor
+				break ReadLoop
 			}
 
 			if p != nil && this.handler != nil {
 				var h = this.handler
 				this.mu.Unlock()
 				if h.OnMessage(this, p) == false {
-					break ReadFor
+					break ReadLoop
 				}
-				continue ReadFor
+				continue ReadLoop
 			}
 			this.mu.Unlock()
 		}
@@ -338,18 +338,18 @@ func (this *rawConn) write(w *sync.WaitGroup) {
 
 	var err error
 
-WriteFor:
+WriteLoop:
 	for {
 		select {
 		case <-this.closeChan:
-			break WriteFor
+			break WriteLoop
 		case p, ok := <-this.writeBuffer:
 			if ok == false {
-				break WriteFor
+				break WriteLoop
 			}
 
 			if _, err = this.Write(p); err != nil {
-				break WriteFor
+				break WriteLoop
 			}
 		}
 	}

@@ -114,11 +114,11 @@ func (this *wsConn) read(w *sync.WaitGroup) {
 	var p Packet
 	var msg []byte
 
-ReadFor:
+ReadLoop:
 	for {
 		select {
 		case <-this.closeChan:
-			break ReadFor
+			break ReadLoop
 		default:
 			//if this.readTimeout > 0 {
 			//	this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
@@ -126,27 +126,27 @@ ReadFor:
 
 			_, msg, err = this.conn.ReadMessage()
 			if err != nil {
-				break ReadFor
+				break ReadLoop
 			}
 
 			this.mu.Lock()
 			if this.isClosed == true {
 				this.mu.Unlock()
-				break ReadFor
+				break ReadLoop
 			}
 
 			p, err = this.protocol.Unmarshal(bytes.NewReader(msg))
 			if err != nil {
 				this.mu.Unlock()
-				break ReadFor
+				break ReadLoop
 			}
 			if p != nil && this.handler != nil {
 				var h = this.handler
 				this.mu.Unlock()
 				if h.OnMessage(this, p) == false {
-					break ReadFor
+					break ReadLoop
 				}
-				continue ReadFor
+				continue ReadLoop
 			}
 			this.mu.Unlock()
 		}
@@ -162,23 +162,23 @@ func (this *wsConn) write(w *sync.WaitGroup) {
 
 	var err error
 
-WriteFor:
+WriteLoop:
 	for {
 		select {
 		case <-this.closeChan:
-			break WriteFor
+			break WriteLoop
 		case <-ticker.C:
 			if err = this.writeMessage(websocket.PingMessage, nil); err != nil {
-				break WriteFor
+				break WriteLoop
 			}
 		case p, ok := <-this.writeBuffer:
 			if ok == false {
 				//this.writeMessage(websocket.CloseMessage, []byte{})
-				break WriteFor
+				break WriteLoop
 			}
 
 			if _, err = this.Write(p); err != nil {
-				break WriteFor
+				break WriteLoop
 			}
 		}
 	}
