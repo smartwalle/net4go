@@ -6,25 +6,25 @@ import (
 	"time"
 )
 
-type Pipe interface {
+type Pipeline interface {
 	Bind(c1, c2 net.Conn) (err error)
 }
 
-type rawPipe struct {
+type pipeline struct {
 	pool         BufferPool
 	readTimeout  time.Duration
 	writeTimeout time.Duration
 }
 
-func NewPipe(bufferSize int, readTimeout, writeTimeout time.Duration) Pipe {
-	var p = &rawPipe{}
+func NewPipeline(bufferSize int, readTimeout, writeTimeout time.Duration) Pipeline {
+	var p = &pipeline{}
 	p.pool = NewBufferPool(bufferSize)
 	p.readTimeout = readTimeout
 	p.writeTimeout = writeTimeout
 	return p
 }
 
-func (this *rawPipe) Bind(c1, c2 net.Conn) (err error) {
+func (this *pipeline) Bind(c1, c2 net.Conn) (err error) {
 	var errorChan = make(chan error, 1)
 
 	go this.bind(errorChan, c1, c2)
@@ -38,7 +38,7 @@ func (this *rawPipe) Bind(c1, c2 net.Conn) (err error) {
 	return nil
 }
 
-func (this *rawPipe) bind(errorChan chan error, src, dst net.Conn) {
+func (this *pipeline) bind(errorChan chan error, src, dst net.Conn) {
 	var buf = this.pool.Get()
 	errorChan <- pipe(src, dst, buf, this.readTimeout, this.writeTimeout)
 	this.pool.Put(buf)
