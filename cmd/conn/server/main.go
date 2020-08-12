@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
-	"github.com/smartwalle/net4go/sample/conn/protocol"
+	"github.com/smartwalle/net4go/cmd/conn/protocol"
+	"github.com/smartwalle/net4go/ws"
 	"math/big"
 	"net"
 	"net/http"
@@ -61,7 +62,7 @@ func serveWs(h net4go.Handler) {
 		if err != nil {
 			return
 		}
-		net4go.NewWsConn(c, p, h)
+		ws.NewWsConn(c, p, h)
 	})
 	http.ListenAndServe(":6656", nil)
 }

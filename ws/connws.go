@@ -1,23 +1,25 @@
-package net4go
+package ws
 
 import (
 	"bytes"
 	"github.com/gorilla/websocket"
+	"github.com/smartwalle/net4go"
+	"github.com/smartwalle/net4go/internal"
 	"net"
 	"sync"
 	"time"
 )
 
 type wsConn struct {
-	*connOption
+	*internal.ConnOption
 
 	conn *websocket.Conn
 
 	mu   sync.Mutex
 	data map[string]interface{}
 
-	protocol Protocol
-	handler  Handler
+	protocol net4go.Protocol
+	handler  net4go.Handler
 
 	closeChan chan struct{}
 	closeOnce sync.Once
@@ -28,21 +30,21 @@ type wsConn struct {
 	pingPeriod time.Duration
 }
 
-func NewWsConn(conn *websocket.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
+func NewWsConn(conn *websocket.Conn, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
 	var nc = &wsConn{}
-	nc.connOption = newConnOption()
+	nc.ConnOption = internal.NewConnOption()
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
 
 	for _, opt := range opts {
-		opt.Apply(nc.connOption)
+		opt.Apply(nc.ConnOption)
 	}
 
 	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan []byte, nc.writeBufferSize)
+	nc.writeBuffer = make(chan []byte, nc.WriteBufferSize)
 
-	nc.pongWait = nc.readTimeout
+	nc.pongWait = nc.ReadTimeout
 	nc.pingPeriod = (nc.pongWait * 9) / 10
 
 	nc.run()
@@ -54,7 +56,7 @@ func (this *wsConn) Conn() net.Conn {
 	return this.conn.UnderlyingConn()
 }
 
-func (this *wsConn) UpdateHandler(handler Handler) {
+func (this *wsConn) UpdateHandler(handler net4go.Handler) {
 	this.handler = handler
 }
 
@@ -103,7 +105,7 @@ func (this *wsConn) run() {
 }
 
 func (this *wsConn) read(w *sync.WaitGroup) {
-	this.conn.SetReadLimit(this.readLimitSize)
+	this.conn.SetReadLimit(this.ReadLimitSize)
 	this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
 	this.conn.SetPongHandler(func(string) error {
 		this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
@@ -113,7 +115,7 @@ func (this *wsConn) read(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
-	var p Packet
+	var p net4go.Packet
 	var msg []byte
 
 ReadLoop:
@@ -123,8 +125,8 @@ ReadLoop:
 			break ReadLoop
 		default:
 			var h = this.handler
-			if this.readTimeout > 0 {
-				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
+			if this.ReadTimeout > 0 {
+				this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 			}
 			_, msg, err = this.conn.ReadMessage()
 			if err != nil {
@@ -180,7 +182,7 @@ WriteLoop:
 	this.close(err)
 }
 
-func (this *wsConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
+func (this *wsConn) AsyncWritePacket(p net4go.Packet, timeout time.Duration) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -188,7 +190,7 @@ func (this *wsConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error
 	return this.AsyncWrite(pData, timeout)
 }
 
-func (this *wsConn) WritePacket(p Packet) (err error) {
+func (this *wsConn) WritePacket(p net4go.Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -200,14 +202,14 @@ func (this *wsConn) WritePacket(p Packet) (err error) {
 func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
 	select {
 	case <-this.closeChan:
-		return ErrConnClosed
+		return net4go.ErrConnClosed
 	default:
 		if timeout == 0 {
 			select {
 			case this.writeBuffer <- b:
 				return nil
 			default:
-				return ErrWriteFailed
+				return net4go.ErrWriteFailed
 			}
 		}
 
@@ -215,7 +217,7 @@ func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
 		case this.writeBuffer <- b:
 			return nil
 		case <-time.After(timeout):
-			return ErrWriteFailed
+			return net4go.ErrWriteFailed
 		}
 	}
 }
@@ -229,16 +231,16 @@ func (this *wsConn) Write(b []byte) (n int, err error) {
 
 func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
 	if this.conn == nil {
-		return ErrConnClosed
+		return net4go.ErrConnClosed
 	}
 
-	if this.writeTimeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
+	if this.WriteTimeout > 0 {
+		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
 	}
 
 	select {
 	case <-this.closeChan:
-		return ErrConnClosed
+		return net4go.ErrConnClosed
 	default:
 		this.mu.Lock()
 		defer this.mu.Unlock()

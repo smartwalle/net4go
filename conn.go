@@ -3,6 +3,7 @@ package net4go
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/smartwalle/net4go/internal"
 	"io"
 	"net"
 	"sync"
@@ -12,16 +13,6 @@ import (
 var (
 	ErrConnClosed  = errors.New("net4go: connection closed")
 	ErrWriteFailed = errors.New("net4go: write failed")
-)
-
-const (
-	kDefaultWriteTimeout = 10 * time.Second
-
-	kDefaultReadTimeout = 15 * time.Second
-
-	kDefaultWriteBufferSize = 16
-
-	kDefaultReadLimit = 1024
 )
 
 type Packet interface {
@@ -111,65 +102,49 @@ type Handler interface {
 }
 
 type Option interface {
-	Apply(conn *connOption)
+	Apply(conn *internal.ConnOption)
 }
 
-type OptionFunc func(*connOption)
+type OptionFunc func(*internal.ConnOption)
 
-func (f OptionFunc) Apply(c *connOption) {
+func (f OptionFunc) Apply(c *internal.ConnOption) {
 	f(c)
 }
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *connOption) {
+	return OptionFunc(func(c *internal.ConnOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
-		c.writeTimeout = timeout
+		c.WriteTimeout = timeout
 	})
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *connOption) {
+	return OptionFunc(func(c *internal.ConnOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
-		c.readTimeout = timeout
+		c.ReadTimeout = timeout
 	})
 }
 
 func WithWriteBufferSize(size int) Option {
-	return OptionFunc(func(c *connOption) {
+	return OptionFunc(func(c *internal.ConnOption) {
 		if size <= 0 {
-			size = kDefaultWriteBufferSize
+			size = internal.ConnWriteBufferSize
 		}
-		c.writeBufferSize = size
+		c.WriteBufferSize = size
 	})
 }
 
 func WithReadLimitSize(size int64) Option {
-	return OptionFunc(func(c *connOption) {
+	return OptionFunc(func(c *internal.ConnOption) {
 		if size < 0 {
-			size = kDefaultReadLimit
+			size = internal.ConnReadLimit
 		}
-		c.readLimitSize = size
+		c.ReadLimitSize = size
 	})
-}
-
-type connOption struct {
-	writeTimeout    time.Duration
-	readTimeout     time.Duration
-	writeBufferSize int
-	readLimitSize   int64
-}
-
-func newConnOption() *connOption {
-	var opt = &connOption{}
-	opt.writeTimeout = kDefaultWriteTimeout
-	opt.readTimeout = kDefaultReadTimeout
-	opt.writeBufferSize = kDefaultWriteBufferSize
-	opt.readLimitSize = kDefaultReadLimit
-	return opt
 }
 
 type Conn interface {
@@ -208,7 +183,7 @@ type Conn interface {
 }
 
 type rawConn struct {
-	*connOption
+	*internal.ConnOption
 
 	conn net.Conn
 
@@ -225,17 +200,17 @@ type rawConn struct {
 
 func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
 	var nc = &rawConn{}
-	nc.connOption = newConnOption()
+	nc.ConnOption = internal.NewConnOption()
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
 
 	for _, opt := range opts {
-		opt.Apply(nc.connOption)
+		opt.Apply(nc.ConnOption)
 	}
 
 	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan []byte, nc.writeBufferSize)
+	nc.writeBuffer = make(chan []byte, nc.WriteBufferSize)
 
 	nc.run()
 
@@ -307,8 +282,8 @@ ReadLoop:
 			break ReadLoop
 		default:
 			var h = this.handler
-			if this.readTimeout > 0 {
-				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
+			if this.ReadTimeout > 0 {
+				this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 			}
 			p, err = this.protocol.Unmarshal(this.conn)
 			if err != nil {
@@ -413,8 +388,8 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 		return 0, ErrConnClosed
 	}
 
-	if this.writeTimeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
+	if this.WriteTimeout > 0 {
+		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
 	}
 
 	select {

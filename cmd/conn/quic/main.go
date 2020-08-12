@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/smartwalle/net4go"
+	"github.com/smartwalle/net4go/cmd/conn/protocol"
 	"github.com/smartwalle/net4go/quic"
-	"github.com/smartwalle/net4go/sample/conn/protocol"
 	"os"
 	"time"
 )

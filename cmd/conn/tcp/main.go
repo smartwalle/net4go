@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/smartwalle/net4go"
-	"github.com/smartwalle/net4go/sample/conn/protocol"
+	"github.com/smartwalle/net4go/cmd/conn/protocol"
 	"net"
 	"os"
 	"time"
