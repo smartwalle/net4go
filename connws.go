@@ -19,8 +19,8 @@ type wsConn struct {
 	protocol Protocol
 	handler  Handler
 
-	isClosed  bool
 	closeChan chan struct{}
+	closeOnce sync.Once
 
 	writeBuffer chan []byte
 
@@ -34,7 +34,6 @@ func NewWsConn(conn *websocket.Conn, protocol Protocol, handler Handler, opts ..
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
-	nc.isClosed = false
 
 	for _, opt := range opts {
 		opt.Apply(nc.connOption)
@@ -80,14 +79,17 @@ func (this *wsConn) Del(key string) {
 	delete(this.data, key)
 }
 
-func (this *wsConn) IsClosed() bool {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	return this.isClosed
+func (this *wsConn) Closed() bool {
+	select {
+	case <-this.closeChan:
+		return true
+	default:
+		return false
+	}
 }
 
 func (this *wsConn) run() {
-	if this.IsClosed() {
+	if this.Closed() {
 		return
 	}
 
@@ -120,35 +122,24 @@ ReadLoop:
 		case <-this.closeChan:
 			break ReadLoop
 		default:
-			//if this.readTimeout > 0 {
-			//	this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
-			//}
-
+			var h = this.handler
+			if this.readTimeout > 0 {
+				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
+			}
 			_, msg, err = this.conn.ReadMessage()
 			if err != nil {
 				break ReadLoop
 			}
 
-			this.mu.Lock()
-			if this.isClosed == true {
-				this.mu.Unlock()
-				break ReadLoop
-			}
-
 			p, err = this.protocol.Unmarshal(bytes.NewReader(msg))
 			if err != nil {
-				this.mu.Unlock()
 				break ReadLoop
 			}
-			if p != nil && this.handler != nil {
-				var h = this.handler
-				this.mu.Unlock()
+			if p != nil && h != nil {
 				if h.OnMessage(this, p) == false {
 					break ReadLoop
 				}
-				continue ReadLoop
 			}
-			this.mu.Unlock()
 		}
 	}
 
@@ -171,14 +162,16 @@ WriteLoop:
 			if err = this.writeMessage(websocket.PingMessage, nil); err != nil {
 				break WriteLoop
 			}
-		case p, ok := <-this.writeBuffer:
-			if ok == false {
-				//this.writeMessage(websocket.CloseMessage, []byte{})
-				break WriteLoop
-			}
+		default:
+			select {
+			case p, ok := <-this.writeBuffer:
+				if ok == false {
+					break WriteLoop
+				}
 
-			if _, err = this.Write(p); err != nil {
-				break WriteLoop
+				if _, err = this.Write(p); err != nil {
+					break WriteLoop
+				}
 			}
 		}
 	}
@@ -205,22 +198,25 @@ func (this *wsConn) WritePacket(p Packet) (err error) {
 }
 
 func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
-	if timeout == 0 {
+	select {
+	case <-this.closeChan:
+		return ErrConnClosed
+	default:
+		if timeout == 0 {
+			select {
+			case this.writeBuffer <- b:
+				return nil
+			default:
+				return ErrWriteFailed
+			}
+		}
+
 		select {
 		case this.writeBuffer <- b:
 			return nil
-		default:
+		case <-time.After(timeout):
 			return ErrWriteFailed
 		}
-	}
-
-	select {
-	case this.writeBuffer <- b:
-		return nil
-	case <-this.closeChan:
-		return ErrConnClosed
-	case <-time.After(timeout):
-		return ErrWriteFailed
 	}
 }
 
@@ -232,40 +228,39 @@ func (this *wsConn) Write(b []byte) (n int, err error) {
 }
 
 func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-
-	if this.isClosed || this.conn == nil {
+	if this.conn == nil {
 		return ErrConnClosed
 	}
 
 	if this.writeTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 	}
-	return this.conn.WriteMessage(messageType, data)
+
+	select {
+	case <-this.closeChan:
+		return ErrConnClosed
+	default:
+		this.mu.Lock()
+		defer this.mu.Unlock()
+		return this.conn.WriteMessage(messageType, data)
+	}
 }
 
 func (this *wsConn) close(err error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.isClosed == true {
-		return
-	}
+	this.closeOnce.Do(func() {
+		close(this.writeBuffer)
+		close(this.closeChan)
 
-	this.isClosed = true
-	close(this.writeBuffer)
-	close(this.closeChan)
+		this.writeBuffer = nil
 
-	this.writeBuffer = nil
+		this.conn.Close()
+		if this.handler != nil {
+			this.handler.OnClose(this, err)
+		}
 
-	this.conn.Close()
-	if this.handler != nil {
-		this.handler.OnClose(this, err)
-	}
-
-	this.data = nil
-	//this.protocol = nil
-	this.handler = nil
+		this.data = nil
+		this.handler = nil
+	})
 }
 
 func (this *wsConn) Close() error {

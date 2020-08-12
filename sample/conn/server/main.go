@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
-	"github.com/smartwalle/net4go/quic"
 	"github.com/smartwalle/net4go/sample/conn/protocol"
 	"math/big"
 	"net"
@@ -21,7 +20,7 @@ func main() {
 
 	go serveTcp(h)
 	go serveWs(h)
-	go serveQUIC(h)
+	//go serveQUIC(h)
 
 	select {}
 }
@@ -67,25 +66,25 @@ func serveWs(h net4go.Handler) {
 	http.ListenAndServe(":6656", nil)
 }
 
-func serveQUIC(h net4go.Handler) {
-	l, err := quic.ListenAddr("127.0.0.1:6657", generateTLSConfig(), nil)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	var p = &protocol.TCPProtocol{}
-
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		net4go.NewConn(c, p, h)
-	}
-}
+//func serveQUIC(h net4go.Handler) {
+//	l, err := quic.ListenAddr("127.0.0.1:6657", generateTLSConfig(), nil)
+//	if err != nil {
+//		fmt.Println(err)
+//		return
+//	}
+//
+//	var p = &protocol.TCPProtocol{}
+//
+//	for {
+//		c, err := l.Accept()
+//		if err != nil {
+//			fmt.Println(err)
+//			continue
+//		}
+//
+//		net4go.NewConn(c, p, h)
+//	}
+//}
 
 func generateTLSConfig() *tls.Config {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
@@ -114,7 +113,7 @@ type ServerHandler struct {
 }
 
 func (this *ServerHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) bool {
-	fmt.Println("OnMessage", packet)
+	//fmt.Println("OnMessage", packet)
 
 	var p = &protocol.Packet{}
 	p.Type = 2

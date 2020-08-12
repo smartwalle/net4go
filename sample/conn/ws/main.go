@@ -13,7 +13,7 @@ func main() {
 	var p = &protocol.WSProtocol{}
 	var h = &WSHandler{}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		c, _, err := websocket.DefaultDialer.Dial("ws://127.0.0.1:6656/ws", nil)
 		if err != nil {
 			fmt.Println(err)
@@ -29,7 +29,7 @@ func main() {
 		go func(nConn net4go.Conn) {
 			for {
 				nConn.WritePacket(packet)
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 10)
 			}
 		}(nConn)
 	}

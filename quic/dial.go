@@ -44,7 +44,7 @@ func (this *Dialer) DialConnContext(ctx context.Context, pConn net.PacketConn, a
 
 	stream, err := sess.OpenStream()
 	if err != nil {
-		sess.Close()
+		sess.CloseWithError(quic.ErrorCode(0), err.Error())
 		return nil, err
 	}
 

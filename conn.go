@@ -183,7 +183,7 @@ type Conn interface {
 
 	Del(key string)
 
-	IsClosed() bool
+	Closed() bool
 
 	AsyncWritePacket(p Packet, timeout time.Duration) (err error)
 
@@ -212,14 +212,13 @@ type rawConn struct {
 
 	conn net.Conn
 
-	mu   sync.Mutex
 	data map[string]interface{}
 
 	protocol Protocol
 	handler  Handler
 
-	isClosed  bool
 	closeChan chan struct{}
+	closeOnce sync.Once
 
 	writeBuffer chan []byte
 }
@@ -230,7 +229,6 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
-	nc.isClosed = false
 
 	for _, opt := range opts {
 		opt.Apply(nc.connOption)
@@ -273,14 +271,17 @@ func (this *rawConn) Del(key string) {
 	delete(this.data, key)
 }
 
-func (this *rawConn) IsClosed() bool {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	return this.isClosed
+func (this *rawConn) Closed() bool {
+	select {
+	case <-this.closeChan:
+		return true
+	default:
+		return false
+	}
 }
 
 func (this *rawConn) run() {
-	if this.IsClosed() {
+	if this.Closed() {
 		return
 	}
 
@@ -305,6 +306,7 @@ ReadLoop:
 		case <-this.closeChan:
 			break ReadLoop
 		default:
+			var h = this.handler
 			if this.readTimeout > 0 {
 				this.conn.SetReadDeadline(time.Now().Add(this.readTimeout))
 			}
@@ -312,21 +314,12 @@ ReadLoop:
 			if err != nil {
 				break ReadLoop
 			}
-			this.mu.Lock()
-			if this.isClosed == true {
-				this.mu.Unlock()
-				break ReadLoop
-			}
 
-			if p != nil && this.handler != nil {
-				var h = this.handler
-				this.mu.Unlock()
+			if p != nil && h != nil {
 				if h.OnMessage(this, p) == false {
 					break ReadLoop
 				}
-				continue ReadLoop
 			}
-			this.mu.Unlock()
 		}
 	}
 
@@ -358,10 +351,6 @@ WriteLoop:
 }
 
 func (this *rawConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
-	//if this.IsClosed() || this.conn == nil {
-	//	return ErrConnClosed
-	//}
-
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -371,10 +360,6 @@ func (this *rawConn) AsyncWritePacket(p Packet, timeout time.Duration) (err erro
 }
 
 func (this *rawConn) WritePacket(p Packet) (err error) {
-	//if this.IsClosed() || this.conn == nil {
-	//	return ErrConnClosed
-	//}
-
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -386,7 +371,7 @@ func (this *rawConn) WritePacket(p Packet) (err error) {
 // net.Conn interface
 
 //func (this *rawConn) Read(p []byte) (n int, err error) {
-//	if this.IsClosed() {
+//	if this.Closed() {
 //		return 0, ErrConnClosed
 //	}
 //
@@ -397,38 +382,34 @@ func (this *rawConn) WritePacket(p Packet) (err error) {
 //}
 
 func (this *rawConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
-	//if this.IsClosed() || this.conn == nil {
-	//	return ErrConnClosed
-	//}
+	select {
+	case <-this.closeChan:
+		return ErrConnClosed
+	default:
+		if timeout == 0 {
+			select {
+			case this.writeBuffer <- b:
+				return nil
+			default:
+				return ErrWriteFailed
+			}
+		}
 
-	if timeout == 0 {
 		select {
 		case this.writeBuffer <- b:
 			return nil
-		default:
+		case <-time.After(timeout):
 			return ErrWriteFailed
 		}
-	}
-
-	select {
-	case this.writeBuffer <- b:
-		return nil
-	case <-this.closeChan:
-		return ErrConnClosed
-	case <-time.After(timeout):
-		return ErrWriteFailed
 	}
 }
 
 func (this *rawConn) Write(b []byte) (n int, err error) {
-	//if this.IsClosed() || this.conn == nil {
+	//if this.Closed() || this.conn == nil {
 	//	return 0, ErrConnClosed
 	//}
 
-	this.mu.Lock()
-	defer this.mu.Unlock()
-
-	if this.isClosed || this.conn == nil {
+	if this.conn == nil {
 		return 0, ErrConnClosed
 	}
 
@@ -436,30 +417,27 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 		this.conn.SetWriteDeadline(time.Now().Add(this.writeTimeout))
 	}
 
-	return this.conn.Write(b)
+	select {
+	case <-this.closeChan:
+		return 0, ErrConnClosed
+	default:
+		return this.conn.Write(b)
+	}
 }
 
 func (this *rawConn) close(err error) {
-	this.mu.Lock()
-	defer this.mu.Unlock()
-	if this.isClosed == true {
-		return
-	}
+	this.closeOnce.Do(func() {
+		close(this.closeChan)
+		close(this.writeBuffer)
 
-	this.isClosed = true
-	close(this.writeBuffer)
-	close(this.closeChan)
+		this.conn.Close()
+		if this.handler != nil {
+			this.handler.OnClose(this, err)
+		}
 
-	this.writeBuffer = nil
-
-	this.conn.Close()
-	if this.handler != nil {
-		this.handler.OnClose(this, err)
-	}
-
-	this.data = nil
-	//this.protocol = nil
-	this.handler = nil
+		this.data = nil
+		this.handler = nil
+	})
 }
 
 func (this *rawConn) Close() error {
