@@ -38,7 +38,7 @@ func (this *Listener) Accept() (net.Conn, error) {
 	return c, nil
 }
 
-func ListenAddr(addr string, tlsConf *tls.Config, config *quic.Config) (*Listener, error) {
+func Listen(addr string, tlsConf *tls.Config, config *quic.Config) (*Listener, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
@@ -47,10 +47,10 @@ func ListenAddr(addr string, tlsConf *tls.Config, config *quic.Config) (*Listene
 	if err != nil {
 		return nil, err
 	}
-	return Listen(conn, tlsConf, config)
+	return ListenPacket(conn, tlsConf, config)
 }
 
-func Listen(conn net.PacketConn, tlsConf *tls.Config, config *quic.Config) (*Listener, error) {
+func ListenPacket(conn net.PacketConn, tlsConf *tls.Config, config *quic.Config) (*Listener, error) {
 	l, err := quic.Listen(conn, tlsConf, config)
 	if err != nil {
 		return nil, err
