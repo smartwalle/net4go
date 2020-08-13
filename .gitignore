@@ -15,4 +15,3 @@
 .idea/
 *.iml
 .DS_Store
-go.sum

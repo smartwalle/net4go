@@ -1,0 +1,10 @@
+github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
+github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/smartwalle/net4go v0.0.32 h1:xKbTzbJpvdT0xxwbGLifP/eNQrDBRoDD12wYCQ7Cx+s=
+github.com/smartwalle/net4go v0.0.32/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
+github.com/smartwalle/net4go v0.0.33 h1:7YIvK2Lz8h8d2NqhdBZiVIX27M/Np0wWpxOkm6vqX9s=
+github.com/smartwalle/net4go v0.0.33/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
+github.com/smartwalle/net4go/ws v0.0.1 h1:CyAGd6X0NG7Ts209qmKNa9saQEMOKKc5tIR07yl9ZBc=
+github.com/smartwalle/net4go/ws v0.0.1/go.mod h1:KmRb0/yKEXf31gx0gyDv7UhWC8ltBMPPpT5Eeiq7B9s=
+github.com/smartwalle/net4go/ws v0.0.2 h1:x/7/0hvfjNOl8LLDaeckiyJBoJKBjjwD1q26YOrhMT8=
+github.com/smartwalle/net4go/ws v0.0.2/go.mod h1:KmRb0/yKEXf31gx0gyDv7UhWC8ltBMPPpT5Eeiq7B9s=
