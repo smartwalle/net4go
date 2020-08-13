@@ -52,14 +52,14 @@ func (this *Dialer) DialConnContext(ctx context.Context, pConn net.PacketConn, a
 	return c, nil
 }
 
-func DialAddr(addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
+func Dial(addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
 	var d Dialer
 	d.tlsConf = tlsConf
 	d.config = config
 	return d.DialContext(context.Background(), "udp", addr)
 }
 
-func Dial(pConn net.PacketConn, addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
+func DialPacket(pConn net.PacketConn, addr string, tlsConf *tls.Config, config *quic.Config) (net.Conn, error) {
 	var d Dialer
 	d.tlsConf = tlsConf
 	d.config = config
