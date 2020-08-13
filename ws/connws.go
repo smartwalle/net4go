@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
-	"github.com/smartwalle/net4go/internal"
 	"net"
 	"sync"
 	"time"
 )
 
 type wsConn struct {
-	*internal.ConnOption
+	*net4go.ConnOption
 
 	conn *websocket.Conn
 
@@ -32,7 +31,7 @@ type wsConn struct {
 
 func NewConn(conn *websocket.Conn, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
 	var nc = &wsConn{}
-	nc.ConnOption = internal.NewConnOption()
+	nc.ConnOption = net4go.NewConnOption()
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler

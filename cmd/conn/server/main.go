@@ -62,7 +62,7 @@ func serveWs(h net4go.Handler) {
 		if err != nil {
 			return
 		}
-		ws.NewWsConn(c, p, h)
+		ws.NewConn(c, p, h)
 	})
 	http.ListenAndServe(":6656", nil)
 }

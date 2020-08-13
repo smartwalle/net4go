@@ -3,7 +3,6 @@ package net4go
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/smartwalle/net4go/internal"
 	"io"
 	"net"
 	"sync"
@@ -101,18 +100,44 @@ type Handler interface {
 	OnClose(Conn, error)
 }
 
-type Option interface {
-	Apply(conn *internal.ConnOption)
+const (
+	ConnWriteTimeout = 10 * time.Second
+
+	ConnReadTimeout = 15 * time.Second
+
+	ConnWriteBufferSize = 16
+
+	ConnReadLimit = 1024
+)
+
+type ConnOption struct {
+	WriteTimeout    time.Duration
+	ReadTimeout     time.Duration
+	WriteBufferSize int
+	ReadLimitSize   int64
 }
 
-type OptionFunc func(*internal.ConnOption)
+func NewConnOption() *ConnOption {
+	var opt = &ConnOption{}
+	opt.WriteTimeout = ConnWriteTimeout
+	opt.ReadTimeout = ConnReadTimeout
+	opt.WriteBufferSize = ConnWriteBufferSize
+	opt.ReadLimitSize = ConnReadLimit
+	return opt
+}
 
-func (f OptionFunc) Apply(c *internal.ConnOption) {
+type Option interface {
+	Apply(conn *ConnOption)
+}
+
+type OptionFunc func(*ConnOption)
+
+func (f OptionFunc) Apply(c *ConnOption) {
 	f(c)
 }
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *internal.ConnOption) {
+	return OptionFunc(func(c *ConnOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -121,7 +146,7 @@ func WithWriteTimeout(timeout time.Duration) Option {
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *internal.ConnOption) {
+	return OptionFunc(func(c *ConnOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -130,18 +155,18 @@ func WithReadTimeout(timeout time.Duration) Option {
 }
 
 func WithWriteBufferSize(size int) Option {
-	return OptionFunc(func(c *internal.ConnOption) {
+	return OptionFunc(func(c *ConnOption) {
 		if size <= 0 {
-			size = internal.ConnWriteBufferSize
+			size = ConnWriteBufferSize
 		}
 		c.WriteBufferSize = size
 	})
 }
 
 func WithReadLimitSize(size int64) Option {
-	return OptionFunc(func(c *internal.ConnOption) {
+	return OptionFunc(func(c *ConnOption) {
 		if size < 0 {
-			size = internal.ConnReadLimit
+			size = ConnReadLimit
 		}
 		c.ReadLimitSize = size
 	})
@@ -183,7 +208,7 @@ type Conn interface {
 }
 
 type rawConn struct {
-	*internal.ConnOption
+	*ConnOption
 
 	conn net.Conn
 
@@ -200,7 +225,7 @@ type rawConn struct {
 
 func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
 	var nc = &rawConn{}
-	nc.ConnOption = internal.NewConnOption()
+	nc.ConnOption = NewConnOption()
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
