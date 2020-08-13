@@ -69,7 +69,7 @@ func serveWs(h net4go.Handler) {
 }
 
 func serveQUIC(h net4go.Handler) {
-	l, err := quic.ListenAddr("127.0.0.1:6657", generateTLSConfig(), nil)
+	l, err := quic.Listen("127.0.0.1:6657", generateTLSConfig(), nil)
 	if err != nil {
 		fmt.Println(err)
 		return
