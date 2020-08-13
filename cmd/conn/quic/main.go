@@ -31,7 +31,7 @@ func main() {
 		go func(nConn net4go.Conn) {
 			for {
 				nConn.WritePacket(packet)
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 10)
 			}
 		}(nConn)
 	}
