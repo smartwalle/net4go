@@ -30,7 +30,7 @@ type wsConn struct {
 	pingPeriod time.Duration
 }
 
-func NewWsConn(conn *websocket.Conn, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
+func NewConn(conn *websocket.Conn, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
 	var nc = &wsConn{}
 	nc.ConnOption = internal.NewConnOption()
 	nc.conn = conn
