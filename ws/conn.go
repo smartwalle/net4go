@@ -46,7 +46,7 @@ func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Prot
 	nc.handler = handler
 
 	if messageType != Text && messageType != Binary {
-		messageType = Text
+		nc.messageType = Text
 	}
 
 	for _, opt := range opts {
