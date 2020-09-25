@@ -21,7 +21,7 @@ func main() {
 			return
 		}
 
-		var nConn = ws.NewConn(c, p, h)
+		var nConn = ws.NewConn(c, ws.Text, p, h)
 
 		var packet = &protocol.Packet{}
 		packet.Type = 1
