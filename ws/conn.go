@@ -11,6 +11,7 @@ import (
 
 type wsConn struct {
 	*net4go.ConnOption
+	messageType MessageType
 
 	conn *websocket.Conn
 
@@ -29,12 +30,24 @@ type wsConn struct {
 	pingPeriod time.Duration
 }
 
-func NewConn(conn *websocket.Conn, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
+type MessageType int
+
+const (
+	Text MessageType = iota + 1
+	Binary
+)
+
+func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
 	var nc = &wsConn{}
 	nc.ConnOption = net4go.NewConnOption()
+	nc.messageType = messageType
 	nc.conn = conn
 	nc.protocol = protocol
 	nc.handler = handler
+
+	if messageType != Text && messageType != Binary {
+		messageType = Text
+	}
 
 	for _, opt := range opts {
 		opt.Apply(nc.ConnOption)
@@ -222,7 +235,7 @@ func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
 }
 
 func (this *wsConn) Write(b []byte) (n int, err error) {
-	if err = this.writeMessage(websocket.TextMessage, b); err != nil {
+	if err = this.writeMessage(int(this.messageType), b); err != nil {
 		return 0, err
 	}
 	return len(b), nil
