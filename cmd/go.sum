@@ -127,6 +127,8 @@ github.com/smartwalle/net4go/ws v0.0.2 h1:x/7/0hvfjNOl8LLDaeckiyJBoJKBjjwD1q26YO
 github.com/smartwalle/net4go/ws v0.0.2/go.mod h1:KmRb0/yKEXf31gx0gyDv7UhWC8ltBMPPpT5Eeiq7B9s=
 github.com/smartwalle/net4go/ws v0.0.3 h1:pbdFcK3OHMBMAl/1v/206Vl0xUEOsLeMeJjik0Q8bYo=
 github.com/smartwalle/net4go/ws v0.0.3/go.mod h1:rVlBSBGxOjRTyJEeMjpTGLBXAwfTBbv4eFj8J7T3yBM=
+github.com/smartwalle/net4go/ws v0.0.4 h1:TLYEb1z74zk9L7nHZSFP5llou0pE/JwQ0PfT5gaD3yg=
+github.com/smartwalle/net4go/ws v0.0.4/go.mod h1:rVlBSBGxOjRTyJEeMjpTGLBXAwfTBbv4eFj8J7T3yBM=
 github.com/sourcegraph/annotate v0.0.0-20160123013949-f4cad6c6324d/go.mod h1:UdhH50NIW0fCiwBSr0co2m7BnFLdv4fQTgdqdJTHFeE=
 github.com/sourcegraph/syntaxhighlight v0.0.0-20170531221838-bd320f5d308e/go.mod h1:HuIsMU8RRBOtsCgI77wP899iHVBQpCmg4ErYMZB+2IA=
 github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
