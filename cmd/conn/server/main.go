@@ -63,7 +63,13 @@ func serveWs(h net4go.Handler) {
 		if err != nil {
 			return
 		}
-		ws.NewConn(c, p, h)
+		var nc = ws.NewConn(c, ws.Text, p, h)
+
+		var p = &protocol.Packet{}
+		p.Type = 2
+		p.Message = "这是服务器端回复的消息"
+		nc.WritePacket(p)
+
 	})
 	http.ListenAndServe(":6656", nil)
 }
