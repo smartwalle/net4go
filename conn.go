@@ -15,9 +15,9 @@ var (
 )
 
 type Packet interface {
-	Marshal() ([]byte, error)
+	MarshalPacket() ([]byte, error)
 
-	Unmarshal([]byte) error
+	UnmarshalPacket([]byte) error
 }
 
 type DefaultPacket struct {
@@ -25,14 +25,14 @@ type DefaultPacket struct {
 	data  []byte
 }
 
-func (this *DefaultPacket) Marshal() ([]byte, error) {
+func (this *DefaultPacket) MarshalPacket() ([]byte, error) {
 	var data = make([]byte, 2+len(this.data))
 	binary.BigEndian.PutUint16(data[0:2], this.pType)
 	copy(data[2:], this.data)
 	return data, nil
 }
 
-func (this *DefaultPacket) Unmarshal(data []byte) error {
+func (this *DefaultPacket) UnmarshalPacket(data []byte) error {
 	this.pType = binary.BigEndian.Uint16(data[:2])
 	this.data = data[2:]
 	return nil
@@ -65,7 +65,7 @@ type DefaultProtocol struct {
 }
 
 func (this *DefaultProtocol) Marshal(p Packet) ([]byte, error) {
-	var pData, err = p.Marshal()
+	var pData, err = p.MarshalPacket()
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
 	}
 
 	var p = &DefaultPacket{}
-	if err := p.Unmarshal(buff); err != nil {
+	if err := p.UnmarshalPacket(buff); err != nil {
 		return nil, err
 	}
 	return p, nil
