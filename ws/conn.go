@@ -186,6 +186,7 @@ WriteLoop:
 				if _, err = this.Write(p); err != nil {
 					break WriteLoop
 				}
+			case <-time.After(time.Second * 5):
 			}
 		}
 	}
@@ -262,8 +263,8 @@ func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
 
 func (this *wsConn) close(err error) {
 	this.closeOnce.Do(func() {
-		close(this.writeBuffer)
 		close(this.closeChan)
+		close(this.writeBuffer)
 
 		this.writeBuffer = nil
 

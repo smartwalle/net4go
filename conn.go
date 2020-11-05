@@ -344,6 +344,7 @@ WriteLoop:
 			if _, err = this.Write(p); err != nil {
 				break WriteLoop
 			}
+		case <-time.After(time.Second * 5):
 		}
 	}
 
@@ -429,6 +430,8 @@ func (this *rawConn) close(err error) {
 	this.closeOnce.Do(func() {
 		close(this.closeChan)
 		close(this.writeBuffer)
+
+		this.writeBuffer = nil
 
 		this.conn.Close()
 		if this.handler != nil {
