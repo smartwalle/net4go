@@ -54,7 +54,7 @@ func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Prot
 	}
 
 	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan []byte, nc.WriteBufferSize)
+	nc.writeBuffer = make(chan []byte, nc.WriteChanSize)
 
 	nc.pongWait = nc.ReadTimeout
 	nc.pingPeriod = (nc.pongWait * 9) / 10
@@ -117,7 +117,8 @@ func (this *wsConn) run() {
 }
 
 func (this *wsConn) read(w *sync.WaitGroup) {
-	this.conn.SetReadLimit(this.ReadLimitSize)
+	this.conn.SetReadLimit(int64(this.ReadBufferSize))
+
 	this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
 	this.conn.SetPongHandler(func(string) error {
 		this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
@@ -289,19 +290,4 @@ func (this *wsConn) LocalAddr() net.Addr {
 
 func (this *wsConn) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
-}
-
-func (this *wsConn) SetDeadline(t time.Time) error {
-	if err := this.conn.SetReadDeadline(t); err != nil {
-		return err
-	}
-	return this.conn.SetWriteDeadline(t)
-}
-
-func (this *wsConn) SetReadDeadline(t time.Time) error {
-	return this.conn.SetReadDeadline(t)
-}
-
-func (this *wsConn) SetWriteDeadline(t time.Time) error {
-	return this.conn.SetWriteDeadline(t)
 }

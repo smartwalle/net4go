@@ -5,4 +5,6 @@ require (
 	github.com/smartwalle/net4go v0.0.34
 )
 
+replace github.com/smartwalle/net4go => ../
+
 go 1.12

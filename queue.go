@@ -1,0 +1,52 @@
+package net4go
+
+import (
+	"sync"
+)
+
+type Queue struct {
+	items [][]byte
+	mu    sync.Mutex
+	cond  *sync.Cond
+}
+
+func (this *Queue) Enqueue(msg []byte) {
+	this.mu.Lock()
+	this.items = append(this.items, msg)
+	this.mu.Unlock()
+
+	this.cond.Signal()
+}
+
+func (this *Queue) Reset() {
+	this.items = this.items[0:0]
+}
+
+func (this *Queue) Dequeue(items *[][]byte, size int) {
+	this.mu.Lock()
+	for len(this.items) == 0 {
+		this.cond.Wait()
+	}
+	this.mu.Unlock()
+
+	this.mu.Lock()
+	for _, item := range this.items {
+		*items = append(*items, item)
+		if len(*items) == size {
+			break
+		}
+	}
+
+	//var xx = len(*items)
+
+	this.Reset()
+
+	//this.items = this.items
+	this.mu.Unlock()
+}
+
+func NewQueue() *Queue {
+	this := &Queue{}
+	this.cond = sync.NewCond(&this.mu)
+	return this
+}

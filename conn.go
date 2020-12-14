@@ -105,24 +105,31 @@ const (
 
 	ConnReadTimeout = 15 * time.Second
 
-	ConnWriteBufferSize = 16
+	ConnWriteChanSize = 16
 
-	ConnReadLimit = 1024
+	ConnReadBufferSize  = 1024
+	ConnWriteBufferSize = 1024
 )
 
 type ConnOption struct {
-	WriteTimeout    time.Duration
-	ReadTimeout     time.Duration
+	WriteTimeout time.Duration
+	ReadTimeout  time.Duration
+
+	WriteChanSize int
+
+	ReadBufferSize  int
 	WriteBufferSize int
-	ReadLimitSize   int64
 }
 
 func NewConnOption() *ConnOption {
 	var opt = &ConnOption{}
 	opt.WriteTimeout = ConnWriteTimeout
 	opt.ReadTimeout = ConnReadTimeout
+
+	opt.WriteChanSize = ConnWriteChanSize
+
+	opt.ReadBufferSize = ConnReadBufferSize
 	opt.WriteBufferSize = ConnWriteBufferSize
-	opt.ReadLimitSize = ConnReadLimit
 	return opt
 }
 
@@ -154,21 +161,30 @@ func WithReadTimeout(timeout time.Duration) Option {
 	})
 }
 
-func WithWriteBufferSize(size int) Option {
+func WithWriteChanSize(size int) Option {
 	return OptionFunc(func(c *ConnOption) {
 		if size <= 0 {
-			size = ConnWriteBufferSize
+			size = ConnWriteChanSize
 		}
-		c.WriteBufferSize = size
+		c.WriteChanSize = size
 	})
 }
 
-func WithReadLimitSize(size int64) Option {
+func WithReadBufferSize(size int) Option {
 	return OptionFunc(func(c *ConnOption) {
-		if size < 0 {
-			size = ConnReadLimit
-		}
-		c.ReadLimitSize = size
+		//if size < 0 {
+		//	size = ConnReadBufferSize
+		//}
+		c.ReadBufferSize = size
+	})
+}
+
+func WithWriteBufferSize(size int) Option {
+	return OptionFunc(func(c *ConnOption) {
+		//if size < 0 {
+		//	size = ConnWriteBufferSize
+		//}
+		c.WriteBufferSize = size
 	})
 }
 
@@ -191,7 +207,6 @@ type Conn interface {
 
 	AsyncWrite(b []byte, timeout time.Duration) (err error)
 
-	// net.Conn 除去 Read()
 	Write(b []byte) (n int, err error)
 
 	Close() error
@@ -199,12 +214,6 @@ type Conn interface {
 	LocalAddr() net.Addr
 
 	RemoteAddr() net.Addr
-
-	SetDeadline(t time.Time) error
-
-	SetReadDeadline(t time.Time) error
-
-	SetWriteDeadline(t time.Time) error
 }
 
 type rawConn struct {
@@ -235,7 +244,17 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	}
 
 	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan []byte, nc.WriteBufferSize)
+	nc.writeBuffer = make(chan []byte, nc.WriteChanSize)
+
+	if tcpConn, ok := nc.conn.(*net.TCPConn); ok {
+		if nc.ReadBufferSize > 0 {
+			tcpConn.SetReadBuffer(nc.ReadBufferSize)
+		}
+
+		if nc.WriteBufferSize > 0 {
+			tcpConn.SetWriteBuffer(nc.WriteBufferSize)
+		}
+	}
 
 	nc.run()
 
@@ -314,6 +333,7 @@ ReadLoop:
 			if err != nil {
 				break ReadLoop
 			}
+			this.conn.SetReadDeadline(time.Time{})
 
 			if p != nil && h != nil {
 				if h.OnMessage(this, p) == false {
@@ -454,16 +474,4 @@ func (this *rawConn) LocalAddr() net.Addr {
 
 func (this *rawConn) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
-}
-
-func (this *rawConn) SetDeadline(t time.Time) error {
-	return this.conn.SetDeadline(t)
-}
-
-func (this *rawConn) SetReadDeadline(t time.Time) error {
-	return this.conn.SetReadDeadline(t)
-}
-
-func (this *rawConn) SetWriteDeadline(t time.Time) error {
-	return this.conn.SetWriteDeadline(t)
 }
