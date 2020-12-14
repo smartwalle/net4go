@@ -8,4 +8,10 @@ require (
 	github.com/smartwalle/net4go/ws v0.0.7
 )
 
+replace (
+	github.com/smartwalle/net4go => ../
+	github.com/smartwalle/net4go/quic => ../quic
+    github.com/smartwalle/net4go/ws => ../ws
+)
+
 go 1.12
