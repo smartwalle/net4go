@@ -13,25 +13,25 @@ func main() {
 	var h = &TCPHandler{}
 
 	for i := 0; i < 1000; i++ {
-			c, err := net.Dial("tcp", ":6655")
-			if err != nil {
-				fmt.Println(err)
-				return
+		c, err := net.Dial("tcp", ":6655")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		var nConn = net4go.NewConn(c, p, h)
+
+		var packet = &protocol.Packet{}
+		packet.Type = 1
+		packet.Message = "来自 TCP"
+
+		go func(i int, nConn net4go.Conn) {
+			fmt.Println("--", i)
+			for {
+				nConn.AsyncWritePacket(packet)
+				time.Sleep(time.Millisecond * 10)
 			}
-
-			var nConn = net4go.NewConn(c, p, h)
-
-			var packet = &protocol.Packet{}
-			packet.Type = 1
-			packet.Message = "来自 TCP"
-
-			go func(i int, nConn net4go.Conn) {
-				fmt.Println("--", i)
-				for {
-					nConn.AsyncWritePacket(packet)
-					time.Sleep(time.Millisecond * 10)
-				}
-			}(i, nConn)
+		}(i, nConn)
 	}
 
 	select {}

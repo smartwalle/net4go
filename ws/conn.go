@@ -245,6 +245,9 @@ func (this *wsConn) Write(b []byte) (n int, err error) {
 		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
 	}
 
+	this.mu.Lock()
+	defer this.mu.Unlock()
+
 	if err = this.conn.WriteMessage(int(this.messageType), b); err != nil {
 		return 0, err
 	}
