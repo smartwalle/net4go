@@ -6,6 +6,7 @@ import (
 	"github.com/smartwalle/net4go"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,13 +22,12 @@ type wsConn struct {
 	protocol net4go.Protocol
 	handler  net4go.Handler
 
-	closeChan chan struct{}
-	closeOnce sync.Once
+	closed int32
 
-	writeBuffer chan []byte
+	wQueue *net4go.Queue
 
-	pongWait   time.Duration
-	pingPeriod time.Duration
+	//pongWait   time.Duration
+	//pingPeriod time.Duration
 }
 
 type MessageType int
@@ -53,11 +53,11 @@ func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Prot
 		opt.Apply(nc.ConnOption)
 	}
 
-	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan []byte, nc.WriteChanSize)
+	nc.closed = 0
+	nc.wQueue = net4go.NewQueue()
 
-	nc.pongWait = nc.ReadTimeout
-	nc.pingPeriod = (nc.pongWait * 9) / 10
+	//nc.pongWait = nc.ReadTimeout
+	//nc.pingPeriod = (nc.pongWait * 9) / 10
 
 	nc.run()
 
@@ -94,12 +94,7 @@ func (this *wsConn) Del(key string) {
 }
 
 func (this *wsConn) Closed() bool {
-	select {
-	case <-this.closeChan:
-		return true
-	default:
-		return false
-	}
+	return atomic.LoadInt32(&this.closed) != 0
 }
 
 func (this *wsConn) run() {
@@ -110,20 +105,20 @@ func (this *wsConn) run() {
 	var w = &sync.WaitGroup{}
 	w.Add(2)
 
-	go this.write(w)
-	go this.read(w)
+	go this.writeLoop(w)
+	go this.readLoop(w)
 
 	w.Wait()
 }
 
-func (this *wsConn) read(w *sync.WaitGroup) {
+func (this *wsConn) readLoop(w *sync.WaitGroup) {
 	this.conn.SetReadLimit(int64(this.ReadBufferSize))
 
-	this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
-	this.conn.SetPongHandler(func(string) error {
-		this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
-		return nil
-	})
+	//this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
+	//this.conn.SetPongHandler(func(string) error {
+	//	this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
+	//	return nil
+	//})
 
 	w.Done()
 
@@ -133,75 +128,86 @@ func (this *wsConn) read(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
-		select {
-		case <-this.closeChan:
+		var h = this.handler
+		if this.ReadTimeout > 0 {
+			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
+		}
+		_, msg, err = this.conn.ReadMessage()
+		if err != nil {
 			break ReadLoop
-		default:
-			var h = this.handler
-			if this.ReadTimeout > 0 {
-				this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
-			}
-			_, msg, err = this.conn.ReadMessage()
-			if err != nil {
-				break ReadLoop
-			}
+		}
+		p, err = this.protocol.Unmarshal(bytes.NewReader(msg))
+		if err != nil {
+			break ReadLoop
+		}
+		this.conn.SetReadDeadline(time.Time{})
 
-			p, err = this.protocol.Unmarshal(bytes.NewReader(msg))
-			if err != nil {
+		if p != nil && h != nil {
+			if h.OnMessage(this, p) == false {
 				break ReadLoop
-			}
-			if p != nil && h != nil {
-				if h.OnMessage(this, p) == false {
-					break ReadLoop
-				}
 			}
 		}
 	}
 
-	this.close(err)
+	this.wQueue.Enqueue(nil)
 }
 
-func (this *wsConn) write(w *sync.WaitGroup) {
-	var ticker = time.NewTicker(this.pingPeriod)
+func (this *wsConn) writeLoop(w *sync.WaitGroup) {
+	//var ticker = time.NewTicker(this.pingPeriod)
 
 	w.Done()
 
 	var err error
+	var writeList [][]byte
 
 WriteLoop:
 	for {
-		select {
-		case <-this.closeChan:
-			break WriteLoop
-		case <-ticker.C:
-			if err = this.writeMessage(websocket.PingMessage, nil); err != nil {
+		writeList = writeList[0:0]
+
+		this.wQueue.Dequeue(&writeList)
+
+		for _, item := range writeList {
+			if len(item) == 0 {
 				break WriteLoop
 			}
-		default:
-			select {
-			case p, ok := <-this.writeBuffer:
-				if ok == false {
-					break WriteLoop
-				}
 
-				if _, err = this.Write(p); err != nil {
-					break WriteLoop
-				}
-			case <-time.After(time.Second * 5):
+			if _, err = this.Write(item); err != nil {
+				break WriteLoop
 			}
 		}
+
+		//select {
+		//case <-this.closeChan:
+		//	break WriteLoop
+		//case <-ticker.C:
+		//	if err = this.writeMessage(websocket.PingMessage, nil); err != nil {
+		//		break WriteLoop
+		//	}
+		//default:
+		//	select {
+		//	case p, ok := <-this.writeBuffer:
+		//		if ok == false {
+		//			break WriteLoop
+		//		}
+		//
+		//		if _, err = this.Write(p); err != nil {
+		//			break WriteLoop
+		//		}
+		//	case <-time.After(time.Second * 5):
+		//	}
+		//}
 	}
 
-	ticker.Stop()
+	//ticker.Stop()
 	this.close(err)
 }
 
-func (this *wsConn) AsyncWritePacket(p net4go.Packet, timeout time.Duration) (err error) {
+func (this *wsConn) AsyncWritePacket(p net4go.Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
 	}
-	return this.AsyncWrite(pData, timeout)
+	return this.AsyncWrite(pData)
 }
 
 func (this *wsConn) WritePacket(p net4go.Packet) (err error) {
@@ -213,70 +219,84 @@ func (this *wsConn) WritePacket(p net4go.Packet) (err error) {
 	return err
 }
 
-func (this *wsConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
-	select {
-	case <-this.closeChan:
+func (this *wsConn) AsyncWrite(b []byte) (err error) {
+	if this.Closed() || this.conn == nil {
 		return net4go.ErrConnClosed
-	default:
-		if timeout == 0 {
-			select {
-			case this.writeBuffer <- b:
-				return nil
-			default:
-				return net4go.ErrWriteFailed
-			}
-		}
-
-		select {
-		case this.writeBuffer <- b:
-			return nil
-		case <-time.After(timeout):
-			return net4go.ErrWriteFailed
-		}
 	}
+
+	if len(b) == 0 {
+		return
+	}
+
+	this.wQueue.Enqueue(b)
+	return nil
 }
 
 func (this *wsConn) Write(b []byte) (n int, err error) {
-	if err = this.writeMessage(int(this.messageType), b); err != nil {
-		return 0, err
+	if this.Closed() || this.conn == nil {
+		return 0, net4go.ErrConnClosed
 	}
-	return len(b), nil
-}
 
-func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
-	if this.conn == nil {
-		return net4go.ErrConnClosed
+	if len(b) == 0 {
+		return
 	}
 
 	if this.WriteTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
 	}
 
-	select {
-	case <-this.closeChan:
-		return net4go.ErrConnClosed
-	default:
-		this.mu.Lock()
-		defer this.mu.Unlock()
-		return this.conn.WriteMessage(messageType, data)
+	if err = this.conn.WriteMessage(int(this.messageType), b); err != nil {
+		return 0, err
 	}
+	return len(b), nil
 }
 
+//func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
+//	if this.conn == nil {
+//		return net4go.ErrConnClosed
+//	}
+//
+//	if this.WriteTimeout > 0 {
+//		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
+//	}
+//
+//	select {
+//	case <-this.closeChan:
+//		return net4go.ErrConnClosed
+//	default:
+//		this.mu.Lock()
+//		defer this.mu.Unlock()
+//		return this.conn.WriteMessage(messageType, data)
+//	}
+//}
+
 func (this *wsConn) close(err error) {
-	this.closeOnce.Do(func() {
-		close(this.closeChan)
-		close(this.writeBuffer)
+	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
+		return
+	}
 
-		this.writeBuffer = nil
+	this.conn.Close()
+	if this.handler != nil {
+		this.handler.OnClose(this, err)
+	}
 
-		this.conn.Close()
-		if this.handler != nil {
-			this.handler.OnClose(this, err)
-		}
+	this.data = nil
+	this.handler = nil
 
-		this.data = nil
-		this.handler = nil
-	})
+	//this.closeOnce.Do(func() {
+	//	close(this.closeChan)
+	//	close(this.writeBuffer)
+	//
+	//	this.writeBuffer = nil
+	//
+	//	this.conn.Close()
+	//	if this.handler != nil {
+	//		this.handler.OnClose(this, err)
+	//	}
+	//
+	//	this.data = nil
+	//	this.handler = nil
+	//})
 }
 
 func (this *wsConn) Close() error {

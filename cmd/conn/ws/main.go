@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/gorilla/websocket"
+	websocket "github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
 	"github.com/smartwalle/net4go/cmd/conn/protocol"
 	"github.com/smartwalle/net4go/ws"
-	"os"
 	"time"
 )
 
@@ -27,12 +26,13 @@ func main() {
 		packet.Type = 1
 		packet.Message = "来自 WS"
 
-		go func(nConn net4go.Conn) {
+		go func(i int, nConn net4go.Conn) {
+			fmt.Println("--", i)
 			for {
-				nConn.WritePacket(packet)
+				nConn.AsyncWritePacket(packet)
 				time.Sleep(time.Millisecond * 10)
 			}
-		}(nConn)
+		}(i, nConn)
 	}
 
 	select {}
@@ -42,11 +42,10 @@ type WSHandler struct {
 }
 
 func (this *WSHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) bool {
-	fmt.Println("OnMessage", packet)
+	//fmt.Println("OnMessage", packet)
 	return true
 }
 
 func (this *WSHandler) OnClose(conn net4go.Conn, err error) {
 	fmt.Println("OnClose", err)
-	os.Exit(-1)
 }

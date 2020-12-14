@@ -22,7 +22,7 @@ func (this *Queue) Reset() {
 	this.items = this.items[0:0]
 }
 
-func (this *Queue) Dequeue(items *[][]byte, size int) {
+func (this *Queue) Dequeue(items *[][]byte) {
 	this.mu.Lock()
 	for len(this.items) == 0 {
 		this.cond.Wait()
@@ -32,16 +32,13 @@ func (this *Queue) Dequeue(items *[][]byte, size int) {
 	this.mu.Lock()
 	for _, item := range this.items {
 		*items = append(*items, item)
-		if len(*items) == size {
+		if len(item) == 0 {
 			break
 		}
 	}
 
-	//var xx = len(*items)
-
 	this.Reset()
 
-	//this.items = this.items
 	this.mu.Unlock()
 }
 

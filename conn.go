@@ -6,12 +6,13 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var (
 	ErrConnClosed  = errors.New("net4go: connection closed")
-	ErrWriteFailed = errors.New("net4go: write failed")
+	ErrWriteFailed = errors.New("net4go: writeLoop failed")
 )
 
 type Packet interface {
@@ -102,10 +103,7 @@ type Handler interface {
 
 const (
 	ConnWriteTimeout = 10 * time.Second
-
-	ConnReadTimeout = 15 * time.Second
-
-	ConnWriteChanSize = 16
+	ConnReadTimeout  = 15 * time.Second
 
 	ConnReadBufferSize  = 1024
 	ConnWriteBufferSize = 1024
@@ -115,8 +113,6 @@ type ConnOption struct {
 	WriteTimeout time.Duration
 	ReadTimeout  time.Duration
 
-	WriteChanSize int
-
 	ReadBufferSize  int
 	WriteBufferSize int
 }
@@ -125,8 +121,6 @@ func NewConnOption() *ConnOption {
 	var opt = &ConnOption{}
 	opt.WriteTimeout = ConnWriteTimeout
 	opt.ReadTimeout = ConnReadTimeout
-
-	opt.WriteChanSize = ConnWriteChanSize
 
 	opt.ReadBufferSize = ConnReadBufferSize
 	opt.WriteBufferSize = ConnWriteBufferSize
@@ -161,15 +155,6 @@ func WithReadTimeout(timeout time.Duration) Option {
 	})
 }
 
-func WithWriteChanSize(size int) Option {
-	return OptionFunc(func(c *ConnOption) {
-		if size <= 0 {
-			size = ConnWriteChanSize
-		}
-		c.WriteChanSize = size
-	})
-}
-
 func WithReadBufferSize(size int) Option {
 	return OptionFunc(func(c *ConnOption) {
 		//if size < 0 {
@@ -201,11 +186,11 @@ type Conn interface {
 
 	Closed() bool
 
-	AsyncWritePacket(p Packet, timeout time.Duration) (err error)
+	AsyncWritePacket(p Packet) (err error)
 
 	WritePacket(p Packet) (err error)
 
-	AsyncWrite(b []byte, timeout time.Duration) (err error)
+	AsyncWrite(b []byte) (err error)
 
 	Write(b []byte) (n int, err error)
 
@@ -226,10 +211,9 @@ type rawConn struct {
 	protocol Protocol
 	handler  Handler
 
-	closeChan chan struct{}
-	closeOnce sync.Once
+	closed int32
 
-	writeBuffer chan []byte
+	wQueue *Queue
 }
 
 func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
@@ -243,8 +227,8 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 		opt.Apply(nc.ConnOption)
 	}
 
-	nc.closeChan = make(chan struct{})
-	nc.writeBuffer = make(chan []byte, nc.WriteChanSize)
+	nc.closed = 0
+	nc.wQueue = NewQueue()
 
 	if tcpConn, ok := nc.conn.(*net.TCPConn); ok {
 		if nc.ReadBufferSize > 0 {
@@ -291,12 +275,7 @@ func (this *rawConn) Del(key string) {
 }
 
 func (this *rawConn) Closed() bool {
-	select {
-	case <-this.closeChan:
-		return true
-	default:
-		return false
-	}
+	return atomic.LoadInt32(&this.closed) != 0
 }
 
 func (this *rawConn) run() {
@@ -307,13 +286,13 @@ func (this *rawConn) run() {
 	var w = &sync.WaitGroup{}
 	w.Add(2)
 
-	go this.write(w)
-	go this.read(w)
+	go this.writeLoop(w)
+	go this.readLoop(w)
 
 	w.Wait()
 }
 
-func (this *rawConn) read(w *sync.WaitGroup) {
+func (this *rawConn) readLoop(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
@@ -321,63 +300,58 @@ func (this *rawConn) read(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
-		select {
-		case <-this.closeChan:
+		var h = this.handler
+		if this.ReadTimeout > 0 {
+			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
+		}
+		p, err = this.protocol.Unmarshal(this.conn)
+		if err != nil {
 			break ReadLoop
-		default:
-			var h = this.handler
-			if this.ReadTimeout > 0 {
-				this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
-			}
-			p, err = this.protocol.Unmarshal(this.conn)
-			if err != nil {
-				break ReadLoop
-			}
-			this.conn.SetReadDeadline(time.Time{})
+		}
+		this.conn.SetReadDeadline(time.Time{})
 
-			if p != nil && h != nil {
-				if h.OnMessage(this, p) == false {
-					break ReadLoop
-				}
+		if p != nil && h != nil {
+			if h.OnMessage(this, p) == false {
+				break ReadLoop
 			}
 		}
 	}
 
-	this.close(err)
+	this.wQueue.Enqueue(nil)
 }
 
-func (this *rawConn) write(w *sync.WaitGroup) {
+func (this *rawConn) writeLoop(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
 
+	var writeList [][]byte
 WriteLoop:
 	for {
-		select {
-		case <-this.closeChan:
-			break WriteLoop
-		case p, ok := <-this.writeBuffer:
-			if ok == false {
+		writeList = writeList[0:0]
+
+		this.wQueue.Dequeue(&writeList)
+
+		for _, item := range writeList {
+			if len(item) == 0 {
 				break WriteLoop
 			}
 
-			if _, err = this.Write(p); err != nil {
+			if _, err = this.Write(item); err != nil {
 				break WriteLoop
 			}
-		case <-time.After(time.Second * 5):
 		}
 	}
-
 	this.close(err)
 }
 
-func (this *rawConn) AsyncWritePacket(p Packet, timeout time.Duration) (err error) {
+func (this *rawConn) AsyncWritePacket(p Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
 	}
 
-	return this.AsyncWrite(pData, timeout)
+	return this.AsyncWrite(pData)
 }
 
 func (this *rawConn) WritePacket(p Packet) (err error) {
@@ -389,78 +363,47 @@ func (this *rawConn) WritePacket(p Packet) (err error) {
 	return err
 }
 
-// net.Conn interface
-
-//func (this *rawConn) Read(p []byte) (n int, err error) {
-//	if this.Closed() {
-//		return 0, ErrConnClosed
-//	}
-//
-//	if this.conn == nil {
-//		return 0, ErrConnClosed
-//	}
-//	return this.conn.Read(p)
-//}
-
-func (this *rawConn) AsyncWrite(b []byte, timeout time.Duration) (err error) {
-	select {
-	case <-this.closeChan:
+func (this *rawConn) AsyncWrite(b []byte) (err error) {
+	if this.Closed() || this.conn == nil {
 		return ErrConnClosed
-	default:
-		if timeout == 0 {
-			select {
-			case this.writeBuffer <- b:
-				return nil
-			default:
-				return ErrWriteFailed
-			}
-		}
-
-		select {
-		case this.writeBuffer <- b:
-			return nil
-		case <-time.After(timeout):
-			return ErrWriteFailed
-		}
 	}
+
+	if len(b) == 0 {
+		return
+	}
+
+	this.wQueue.Enqueue(b)
+	return nil
 }
 
 func (this *rawConn) Write(b []byte) (n int, err error) {
-	//if this.Closed() || this.conn == nil {
-	//	return 0, ErrConnClosed
-	//}
-
-	if this.conn == nil {
+	if this.Closed() || this.conn == nil {
 		return 0, ErrConnClosed
+	}
+
+	if len(b) == 0 {
+		return
 	}
 
 	if this.WriteTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
 	}
 
-	select {
-	case <-this.closeChan:
-		return 0, ErrConnClosed
-	default:
-		return this.conn.Write(b)
-	}
+	return this.conn.Write(b)
 }
 
 func (this *rawConn) close(err error) {
-	this.closeOnce.Do(func() {
-		close(this.closeChan)
-		close(this.writeBuffer)
+	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
+		return
+	}
 
-		this.writeBuffer = nil
+	this.conn.Close()
+	if this.handler != nil {
+		this.handler.OnClose(this, err)
+	}
 
-		this.conn.Close()
-		if this.handler != nil {
-			this.handler.OnClose(this, err)
-		}
-
-		this.data = nil
-		this.handler = nil
-	})
+	this.data = nil
+	this.handler = nil
 }
 
 func (this *rawConn) Close() error {
