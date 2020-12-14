@@ -43,7 +43,7 @@ func (this *Queue) Dequeue(items *[][]byte) {
 }
 
 func NewQueue() *Queue {
-	this := &Queue{}
-	this.cond = sync.NewCond(&this.mu)
-	return this
+	var q = &Queue{}
+	q.cond = sync.NewCond(&q.mu)
+	return q
 }
