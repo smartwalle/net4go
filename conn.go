@@ -300,7 +300,6 @@ func (this *rawConn) readLoop(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
-		var h = this.handler
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
@@ -310,6 +309,7 @@ ReadLoop:
 		}
 		this.conn.SetReadDeadline(time.Time{})
 
+		var h = this.handler
 		if p != nil && h != nil {
 			if h.OnMessage(this, p) == false {
 				break ReadLoop

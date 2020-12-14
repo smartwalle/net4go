@@ -136,10 +136,14 @@ github.com/smartwalle/net4go v0.0.33 h1:7YIvK2Lz8h8d2NqhdBZiVIX27M/Np0wWpxOkm6vq
 github.com/smartwalle/net4go v0.0.33/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
 github.com/smartwalle/net4go v0.0.34 h1:JkfYwNYLKVXfNjvxsNPsOA0jAwG8oX+ETDGhhJ9CgAw=
 github.com/smartwalle/net4go v0.0.34/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
+github.com/smartwalle/net4go v0.0.36 h1:bKHQtrIIT676eLXOMoz5Yk0x5YN3p5FyJbZ7+CA3y0g=
+github.com/smartwalle/net4go v0.0.36/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
 github.com/smartwalle/net4go/quic v0.0.1 h1:vAjCzMOTM+ydFjGE0NY/LaVcNu2mYgN3mKG9eb7GKyY=
 github.com/smartwalle/net4go/quic v0.0.1/go.mod h1:SNn1v6ZVtqFQxdR98yPfahmI8zLappObtfasfhEKcQ0=
 github.com/smartwalle/net4go/quic v0.0.2 h1:ucPED2jOfcY6g29gGUCf35wrue1XPm6LWkj6pmFxsr8=
 github.com/smartwalle/net4go/quic v0.0.2/go.mod h1:SNn1v6ZVtqFQxdR98yPfahmI8zLappObtfasfhEKcQ0=
+github.com/smartwalle/net4go/quic v0.0.4 h1:/E/OBABEj6y7EBRM0o20odh8USH4bFrJFbdEV0JgEtY=
+github.com/smartwalle/net4go/quic v0.0.4/go.mod h1:/s274Qee4Ed6v203GGh/zmBMjvCIJhsyQhIeyvwyYTc=
 github.com/smartwalle/net4go/ws v0.0.1 h1:CyAGd6X0NG7Ts209qmKNa9saQEMOKKc5tIR07yl9ZBc=
 github.com/smartwalle/net4go/ws v0.0.1/go.mod h1:KmRb0/yKEXf31gx0gyDv7UhWC8ltBMPPpT5Eeiq7B9s=
 github.com/smartwalle/net4go/ws v0.0.2 h1:x/7/0hvfjNOl8LLDaeckiyJBoJKBjjwD1q26YOrhMT8=
@@ -150,6 +154,8 @@ github.com/smartwalle/net4go/ws v0.0.4 h1:TLYEb1z74zk9L7nHZSFP5llou0pE/JwQ0PfT5g
 github.com/smartwalle/net4go/ws v0.0.4/go.mod h1:rVlBSBGxOjRTyJEeMjpTGLBXAwfTBbv4eFj8J7T3yBM=
 github.com/smartwalle/net4go/ws v0.0.5 h1:1HV7U37jNJqjXxHfCI78rOOiDP6uXhmis9XD63cH8BE=
 github.com/smartwalle/net4go/ws v0.0.5/go.mod h1:kEbQXqh87kSBQwO9BsX0FQILNNz5TlBYSLMTojZAT0M=
+github.com/smartwalle/net4go/ws v0.0.7 h1:H3zdgi9tAGv6Ah8wacmaEQYTYiPWEbqBnVSj1MxfRUw=
+github.com/smartwalle/net4go/ws v0.0.7/go.mod h1:cgKp7aSoIPKlJnxvvOp8yn+xyEEzqmzaI9Xy7+/NdDs=
 github.com/sourcegraph/annotate v0.0.0-20160123013949-f4cad6c6324d/go.mod h1:UdhH50NIW0fCiwBSr0co2m7BnFLdv4fQTgdqdJTHFeE=
 github.com/sourcegraph/syntaxhighlight v0.0.0-20170531221838-bd320f5d308e/go.mod h1:HuIsMU8RRBOtsCgI77wP899iHVBQpCmg4ErYMZB+2IA=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
