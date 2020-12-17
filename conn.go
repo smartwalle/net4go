@@ -101,29 +101,25 @@ type Handler interface {
 	OnClose(Conn, error)
 }
 
-const (
-	ConnWriteTimeout = 10 * time.Second
-	ConnReadTimeout  = 15 * time.Second
-
-	ConnReadBufferSize  = 1024
-	ConnWriteBufferSize = 1024
-)
-
 type ConnOption struct {
 	WriteTimeout time.Duration
 	ReadTimeout  time.Duration
 
 	ReadBufferSize  int
 	WriteBufferSize int
+
+	NoDelay bool
 }
 
 func NewConnOption() *ConnOption {
 	var opt = &ConnOption{}
-	opt.WriteTimeout = ConnWriteTimeout
-	opt.ReadTimeout = ConnReadTimeout
+	opt.WriteTimeout = -1
+	opt.ReadTimeout = -1
 
-	opt.ReadBufferSize = ConnReadBufferSize
-	opt.WriteBufferSize = ConnWriteBufferSize
+	opt.ReadBufferSize = -1
+	opt.WriteBufferSize = -1
+
+	opt.NoDelay = true
 	return opt
 }
 
@@ -170,6 +166,12 @@ func WithWriteBufferSize(size int) Option {
 		//	size = ConnWriteBufferSize
 		//}
 		c.WriteBufferSize = size
+	})
+}
+
+func WithNoDelay(noDelay bool) Option {
+	return OptionFunc(func(c *ConnOption) {
+		c.NoDelay = noDelay
 	})
 }
 
@@ -238,6 +240,8 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 		if nc.WriteBufferSize > 0 {
 			tcpConn.SetWriteBuffer(nc.WriteBufferSize)
 		}
+
+		tcpConn.SetNoDelay(nc.NoDelay)
 	}
 
 	nc.run()
@@ -388,8 +392,9 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 	if this.WriteTimeout > 0 {
 		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
 	}
-
-	return this.conn.Write(b)
+	n, err = this.conn.Write(b)
+	this.conn.SetWriteDeadline(time.Time{})
+	return n, err
 }
 
 func (this *rawConn) close(err error) {
