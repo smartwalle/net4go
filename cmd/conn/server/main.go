@@ -15,7 +15,12 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"sync"
+	"time"
 )
+
+var connList = make(map[net4go.Conn]time.Time)
+var connMu = &sync.Mutex{}
 
 func main() {
 	var h = &ServerHandler{}
@@ -28,7 +33,7 @@ func main() {
 }
 
 func serveTcp(h net4go.Handler) {
-	l, err := net.Listen("tcp", ":6655")
+	l, err := net.Listen("tcp", ":6555")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -43,7 +48,11 @@ func serveTcp(h net4go.Handler) {
 			continue
 		}
 
-		net4go.NewConn(c, p, h)
+		var conn = net4go.NewConn(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
+
+		connMu.Lock()
+		connList[conn] = time.Now()
+		connMu.Unlock()
 	}
 }
 
@@ -132,5 +141,10 @@ func (this *ServerHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) boo
 }
 
 func (this *ServerHandler) OnClose(conn net4go.Conn, err error) {
-	fmt.Println("OnClose", err)
+	connMu.Lock()
+	var ct = connList[conn]
+	delete(connList, conn)
+	connMu.Unlock()
+
+	fmt.Println("OnClose", time.Now(), "  =====  ", ct, err)
 }

@@ -389,10 +389,20 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 		return
 	}
 
-	if this.WriteTimeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
+	var total = len(b)
+	for pos := 0; pos < total; {
+		if this.WriteTimeout > 0 {
+			this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
+		}
+
+		n, err = this.conn.Write(b[pos:])
+		pos += n
+
+		if err != nil {
+			return pos, err
+		}
 	}
-	n, err = this.conn.Write(b)
+	//n, err = this.conn.Write(b)
 	this.conn.SetWriteDeadline(time.Time{})
 	return n, err
 }

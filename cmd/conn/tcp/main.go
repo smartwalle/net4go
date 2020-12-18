@@ -13,13 +13,13 @@ func main() {
 	var h = &TCPHandler{}
 
 	for i := 0; i < 1000; i++ {
-		c, err := net.Dial("tcp", ":6655")
+		c, err := net.Dial("tcp", "47.111.160.251:9999")
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		var nConn = net4go.NewConn(c, p, h)
+		var nConn = net4go.NewConn(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
 
 		var packet = &protocol.Packet{}
 		packet.Type = 1
@@ -28,8 +28,8 @@ func main() {
 		go func(i int, nConn net4go.Conn) {
 			fmt.Println("--", i)
 			for {
-				nConn.AsyncWritePacket(packet)
-				time.Sleep(time.Millisecond * 10)
+				nConn.WritePacket(packet)
+				time.Sleep(time.Millisecond * 66)
 			}
 		}(i, nConn)
 	}
