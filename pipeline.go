@@ -60,6 +60,8 @@ func pipe(src, dst net.Conn, buf []byte, readTimeout, writeTimeout time.Duration
 			return err
 		}
 
+		src.SetReadDeadline(time.Time{})
+
 		if nr > 0 {
 			if writeTimeout > 0 {
 				if err = dst.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
@@ -71,6 +73,8 @@ func pipe(src, dst net.Conn, buf []byte, readTimeout, writeTimeout time.Duration
 			if err != nil {
 				return err
 			}
+
+			dst.SetWriteDeadline(time.Time{})
 
 			if nr != nw {
 				err = io.ErrShortWrite
