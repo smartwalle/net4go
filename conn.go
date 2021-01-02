@@ -176,7 +176,11 @@ func WithNoDelay(noDelay bool) Option {
 }
 
 type Conn interface {
-	Conn() net.Conn
+	Conn() interface{}
+
+	SetId(uint64)
+
+	GetId() uint64
 
 	UpdateHandler(handler Handler)
 
@@ -207,6 +211,8 @@ type rawConn struct {
 	*ConnOption
 
 	conn net.Conn
+
+	id uint64
 
 	data map[string]interface{}
 
@@ -249,8 +255,16 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	return nc
 }
 
-func (this *rawConn) Conn() net.Conn {
+func (this *rawConn) Conn() interface{} {
 	return this.conn
+}
+
+func (this *rawConn) SetId(id uint64) {
+	this.id = id
+}
+
+func (this *rawConn) GetId() uint64 {
+	return this.id
 }
 
 func (this *rawConn) UpdateHandler(handler Handler) {

@@ -16,6 +16,8 @@ type wsConn struct {
 
 	conn *websocket.Conn
 
+	id uint64
+
 	mu   sync.Mutex
 	data map[string]interface{}
 
@@ -64,8 +66,16 @@ func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Prot
 	return nc
 }
 
-func (this *wsConn) Conn() net.Conn {
-	return this.conn.UnderlyingConn()
+func (this *wsConn) Conn() interface{} {
+	return this.conn
+}
+
+func (this *wsConn) SetId(id uint64) {
+	this.id = id
+}
+
+func (this *wsConn) GetId() uint64 {
+	return this.id
 }
 
 func (this *wsConn) UpdateHandler(handler net4go.Handler) {
