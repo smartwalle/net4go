@@ -13,7 +13,7 @@ func main() {
 	var h = &TCPHandler{}
 
 	for i := 0; i < 1000; i++ {
-		c, err := net.Dial("tcp", ":9999")
+		c, err := net.Dial("tcp", ":6555")
 		if err != nil {
 			fmt.Println(err)
 			return
