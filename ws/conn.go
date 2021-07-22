@@ -18,13 +18,13 @@ type wsConn struct {
 
 	id uint64
 
-	mu   sync.Mutex
 	data map[string]interface{}
 
 	protocol net4go.Protocol
 	handler  net4go.Handler
 
 	closed int32
+	mu     *sync.Mutex
 
 	wQueue *net4go.Queue
 
@@ -56,6 +56,7 @@ func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Prot
 	}
 
 	nc.closed = 0
+	nc.mu = &sync.Mutex{}
 	nc.wQueue = net4go.NewQueue()
 
 	//nc.pongWait = nc.ReadTimeout

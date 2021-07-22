@@ -220,6 +220,7 @@ type rawConn struct {
 	handler  Handler
 
 	closed int32
+	mu     *sync.Mutex
 
 	wQueue *Queue
 }
@@ -236,6 +237,7 @@ func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) 
 	}
 
 	nc.closed = 0
+	nc.mu = &sync.Mutex{}
 	nc.wQueue = NewQueue()
 
 	if tcpConn, ok := nc.conn.(*net.TCPConn); ok {
@@ -402,6 +404,9 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 	if len(b) == 0 {
 		return
 	}
+
+	this.mu.Lock()
+	defer this.mu.Unlock()
 
 	var total = len(b)
 	for pos := 0; pos < total; {
