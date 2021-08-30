@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	ErrConnClosed  = errors.New("net4go: connection closed")
-	ErrWriteFailed = errors.New("net4go: writeLoop failed")
+	ErrSessionClosed = errors.New("session closed")
 )
 
 type Packet interface {
@@ -96,12 +95,12 @@ func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
 }
 
 type Handler interface {
-	OnMessage(Conn, Packet) bool
+	OnMessage(Session, Packet) bool
 
-	OnClose(Conn, error)
+	OnClose(Session, error)
 }
 
-type ConnOption struct {
+type SessionOption struct {
 	WriteTimeout time.Duration
 	ReadTimeout  time.Duration
 
@@ -111,8 +110,8 @@ type ConnOption struct {
 	NoDelay bool
 }
 
-func NewConnOption() *ConnOption {
-	var opt = &ConnOption{}
+func NewSessionOption() *SessionOption {
+	var opt = &SessionOption{}
 	opt.WriteTimeout = -1
 	opt.ReadTimeout = -1
 
@@ -124,17 +123,17 @@ func NewConnOption() *ConnOption {
 }
 
 type Option interface {
-	Apply(conn *ConnOption)
+	Apply(conn *SessionOption)
 }
 
-type OptionFunc func(*ConnOption)
+type OptionFunc func(*SessionOption)
 
-func (f OptionFunc) Apply(c *ConnOption) {
+func (f OptionFunc) Apply(c *SessionOption) {
 	f(c)
 }
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *ConnOption) {
+	return OptionFunc(func(c *SessionOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -143,7 +142,7 @@ func WithWriteTimeout(timeout time.Duration) Option {
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *ConnOption) {
+	return OptionFunc(func(c *SessionOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -152,7 +151,7 @@ func WithReadTimeout(timeout time.Duration) Option {
 }
 
 func WithReadBufferSize(size int) Option {
-	return OptionFunc(func(c *ConnOption) {
+	return OptionFunc(func(c *SessionOption) {
 		//if size < 0 {
 		//	size = ConnReadBufferSize
 		//}
@@ -161,7 +160,7 @@ func WithReadBufferSize(size int) Option {
 }
 
 func WithWriteBufferSize(size int) Option {
-	return OptionFunc(func(c *ConnOption) {
+	return OptionFunc(func(c *SessionOption) {
 		//if size < 0 {
 		//	size = ConnWriteBufferSize
 		//}
@@ -170,12 +169,12 @@ func WithWriteBufferSize(size int) Option {
 }
 
 func WithNoDelay(noDelay bool) Option {
-	return OptionFunc(func(c *ConnOption) {
+	return OptionFunc(func(c *SessionOption) {
 		c.NoDelay = noDelay
 	})
 }
 
-type Conn interface {
+type Session interface {
 	Conn() interface{}
 
 	SetId(uint64)
@@ -196,19 +195,11 @@ type Conn interface {
 
 	WritePacket(p Packet) (err error)
 
-	AsyncWrite(b []byte) (err error)
-
-	Write(b []byte) (n int, err error)
-
 	Close() error
-
-	LocalAddr() net.Addr
-
-	RemoteAddr() net.Addr
 }
 
-type rawConn struct {
-	*ConnOption
+type rawSession struct {
+	*SessionOption
 
 	conn net.Conn
 
@@ -225,80 +216,90 @@ type rawConn struct {
 	wQueue *Queue
 }
 
-func NewConn(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Conn {
-	var nc = &rawConn{}
-	nc.ConnOption = NewConnOption()
-	nc.conn = conn
-	nc.protocol = protocol
-	nc.handler = handler
+func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Session {
+	var ns = &rawSession{}
+	ns.SessionOption = NewSessionOption()
+	ns.conn = conn
+	ns.protocol = protocol
+	ns.handler = handler
 
 	for _, opt := range opts {
-		opt.Apply(nc.ConnOption)
+		opt.Apply(ns.SessionOption)
 	}
 
-	nc.closed = 0
-	nc.mu = &sync.Mutex{}
-	nc.wQueue = NewQueue()
+	ns.closed = 0
+	ns.mu = &sync.Mutex{}
+	ns.wQueue = NewQueue()
 
-	if tcpConn, ok := nc.conn.(*net.TCPConn); ok {
-		if nc.ReadBufferSize > 0 {
-			tcpConn.SetReadBuffer(nc.ReadBufferSize)
+	if tcpConn, ok := ns.conn.(*net.TCPConn); ok {
+		if ns.ReadBufferSize > 0 {
+			tcpConn.SetReadBuffer(ns.ReadBufferSize)
 		}
 
-		if nc.WriteBufferSize > 0 {
-			tcpConn.SetWriteBuffer(nc.WriteBufferSize)
+		if ns.WriteBufferSize > 0 {
+			tcpConn.SetWriteBuffer(ns.WriteBufferSize)
 		}
 
-		tcpConn.SetNoDelay(nc.NoDelay)
+		tcpConn.SetNoDelay(ns.NoDelay)
 	}
 
-	nc.run()
+	ns.run()
 
-	return nc
+	return ns
 }
 
-func (this *rawConn) Conn() interface{} {
+func (this *rawSession) Conn() interface{} {
 	return this.conn
 }
 
-func (this *rawConn) SetId(id uint64) {
+func (this *rawSession) SetId(id uint64) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	this.id = id
 }
 
-func (this *rawConn) GetId() uint64 {
+func (this *rawSession) GetId() uint64 {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	return this.id
 }
 
-func (this *rawConn) UpdateHandler(handler Handler) {
+func (this *rawSession) UpdateHandler(handler Handler) {
 	this.handler = handler
 }
 
-func (this *rawConn) Set(key string, value interface{}) {
+func (this *rawSession) Set(key string, value interface{}) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.data == nil {
 		this.data = make(map[string]interface{})
 	}
 	this.data[key] = value
 }
 
-func (this *rawConn) Get(key string) interface{} {
+func (this *rawSession) Get(key string) interface{} {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.data == nil {
 		return nil
 	}
 	return this.data[key]
 }
 
-func (this *rawConn) Del(key string) {
+func (this *rawSession) Del(key string) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.data == nil {
 		return
 	}
 	delete(this.data, key)
 }
 
-func (this *rawConn) Closed() bool {
+func (this *rawSession) Closed() bool {
 	return atomic.LoadInt32(&this.closed) != 0
 }
 
-func (this *rawConn) run() {
+func (this *rawSession) run() {
 	if this.Closed() {
 		return
 	}
@@ -312,7 +313,7 @@ func (this *rawConn) run() {
 	w.Wait()
 }
 
-func (this *rawConn) readLoop(w *sync.WaitGroup) {
+func (this *rawSession) readLoop(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
@@ -340,7 +341,7 @@ ReadLoop:
 	this.wQueue.Enqueue(nil)
 }
 
-func (this *rawConn) writeLoop(w *sync.WaitGroup) {
+func (this *rawSession) writeLoop(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
@@ -365,7 +366,7 @@ WriteLoop:
 	this.close(err)
 }
 
-func (this *rawConn) AsyncWritePacket(p Packet) (err error) {
+func (this *rawSession) AsyncWritePacket(p Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -374,7 +375,7 @@ func (this *rawConn) AsyncWritePacket(p Packet) (err error) {
 	return this.AsyncWrite(pData)
 }
 
-func (this *rawConn) WritePacket(p Packet) (err error) {
+func (this *rawSession) WritePacket(p Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -383,9 +384,9 @@ func (this *rawConn) WritePacket(p Packet) (err error) {
 	return err
 }
 
-func (this *rawConn) AsyncWrite(b []byte) (err error) {
+func (this *rawSession) AsyncWrite(b []byte) (err error) {
 	if this.Closed() || this.conn == nil {
-		return ErrConnClosed
+		return ErrSessionClosed
 	}
 
 	if len(b) == 0 {
@@ -396,9 +397,9 @@ func (this *rawConn) AsyncWrite(b []byte) (err error) {
 	return nil
 }
 
-func (this *rawConn) Write(b []byte) (n int, err error) {
+func (this *rawSession) Write(b []byte) (n int, err error) {
 	if this.Closed() || this.conn == nil {
-		return 0, ErrConnClosed
+		return 0, ErrSessionClosed
 	}
 
 	if len(b) == 0 {
@@ -421,12 +422,11 @@ func (this *rawConn) Write(b []byte) (n int, err error) {
 			return pos, err
 		}
 	}
-	//n, err = this.conn.Write(b)
 	this.conn.SetWriteDeadline(time.Time{})
 	return n, err
 }
 
-func (this *rawConn) close(err error) {
+func (this *rawSession) close(err error) {
 	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
 		return
 	}
@@ -440,15 +440,15 @@ func (this *rawConn) close(err error) {
 	this.handler = nil
 }
 
-func (this *rawConn) Close() error {
+func (this *rawSession) Close() error {
 	this.close(nil)
 	return nil
 }
 
-func (this *rawConn) LocalAddr() net.Addr {
+func (this *rawSession) LocalAddr() net.Addr {
 	return this.conn.LocalAddr()
 }
 
-func (this *rawConn) RemoteAddr() net.Addr {
+func (this *rawSession) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
 }
