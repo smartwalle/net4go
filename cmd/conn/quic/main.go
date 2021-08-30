@@ -21,19 +21,19 @@ func main() {
 			return
 		}
 
-		var nConn = net4go.NewConn(c, p, h)
+		var nSess = net4go.NewSession(c, p, h)
 
 		var packet = &protocol.Packet{}
 		packet.Type = 1
 		packet.Message = "来自 QUIC"
 
-		go func(i int, nConn net4go.Conn) {
+		go func(i int, nSess net4go.Session) {
 			fmt.Println("--", i)
 			for {
-				nConn.AsyncWritePacket(packet)
+				nSess.AsyncWritePacket(packet)
 				time.Sleep(time.Millisecond * 10)
 			}
-		}(i, nConn)
+		}(i, nSess)
 	}
 
 	select {}
@@ -42,11 +42,11 @@ func main() {
 type QUICHandler struct {
 }
 
-func (this *QUICHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) bool {
+func (this *QUICHandler) OnMessage(sess net4go.Session, packet net4go.Packet) bool {
 	//fmt.Println("OnMessage", packet)
 	return true
 }
 
-func (this *QUICHandler) OnClose(conn net4go.Conn, err error) {
+func (this *QUICHandler) OnClose(sess net4go.Session, err error) {
 	fmt.Println("OnClose", err)
 }

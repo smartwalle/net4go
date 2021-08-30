@@ -19,8 +19,8 @@ import (
 	"time"
 )
 
-var connList = make(map[net4go.Conn]time.Time)
-var connMu = &sync.Mutex{}
+var sessList = make(map[net4go.Session]time.Time)
+var sessMu = &sync.Mutex{}
 
 func main() {
 	var h = &ServerHandler{}
@@ -48,11 +48,11 @@ func serveTcp(h net4go.Handler) {
 			continue
 		}
 
-		var conn = net4go.NewConn(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
+		var nSess = net4go.NewSession(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
 
-		connMu.Lock()
-		connList[conn] = time.Now()
-		connMu.Unlock()
+		sessMu.Lock()
+		sessList[nSess] = time.Now()
+		sessMu.Unlock()
 	}
 }
 
@@ -72,12 +72,12 @@ func serveWs(h net4go.Handler) {
 		if err != nil {
 			return
 		}
-		var nc = ws.NewConn(c, ws.Text, p, h)
+		var nSess = ws.NewSession(c, ws.Text, p, h)
 
 		var p = &protocol.Packet{}
 		p.Type = 2
 		p.Message = "这是服务器端回复的消息"
-		nc.AsyncWritePacket(p)
+		nSess.AsyncWritePacket(p)
 
 	})
 	http.ListenAndServe(":6656", nil)
@@ -99,7 +99,7 @@ func serveQUIC(h net4go.Handler) {
 			continue
 		}
 
-		net4go.NewConn(c, p, h)
+		net4go.NewSession(c, p, h)
 	}
 }
 
@@ -129,22 +129,22 @@ func generateTLSConfig() *tls.Config {
 type ServerHandler struct {
 }
 
-func (this *ServerHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) bool {
-	//fmt.Println("OnMessage", packet)
+func (this *ServerHandler) OnMessage(sess net4go.Session, packet net4go.Packet) bool {
+	fmt.Println("OnMessage", packet)
 
 	var p = &protocol.Packet{}
 	p.Type = 2
 	p.Message = "这是服务器端回复的消息"
-	conn.AsyncWritePacket(p)
+	sess.AsyncWritePacket(p)
 
 	return true
 }
 
-func (this *ServerHandler) OnClose(conn net4go.Conn, err error) {
-	connMu.Lock()
-	var ct = connList[conn]
-	delete(connList, conn)
-	connMu.Unlock()
+func (this *ServerHandler) OnClose(sess net4go.Session, err error) {
+	sessMu.Lock()
+	var ct = sessList[sess]
+	delete(sessList, sess)
+	sessMu.Unlock()
 
 	fmt.Println("OnClose", time.Now(), "  =====  ", ct, err)
 }

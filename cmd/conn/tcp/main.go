@@ -19,18 +19,18 @@ func main() {
 			return
 		}
 
-		var nConn = net4go.NewConn(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
+		var nSess = net4go.NewSession(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
 
 		var packet = &protocol.Packet{}
 		packet.Type = 1
 		packet.Message = "来自 TCP"
 
-		go func(i int, nConn net4go.Conn) {
+		go func(i int, nSess net4go.Session) {
 			fmt.Println("--", i)
 			for {
-				nConn.WritePacket(packet)
+				nSess.WritePacket(packet)
 			}
-		}(i, nConn)
+		}(i, nSess)
 	}
 
 	select {}
@@ -39,11 +39,11 @@ func main() {
 type TCPHandler struct {
 }
 
-func (this *TCPHandler) OnMessage(conn net4go.Conn, packet net4go.Packet) bool {
+func (this *TCPHandler) OnMessage(sess net4go.Session, packet net4go.Packet) bool {
 	//fmt.Println("OnMessage", packet)
 	return true
 }
 
-func (this *TCPHandler) OnClose(conn net4go.Conn, err error) {
+func (this *TCPHandler) OnClose(sess net4go.Session, err error) {
 	fmt.Println("OnClose", err)
 }

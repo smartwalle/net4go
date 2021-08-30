@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-type wsConn struct {
-	*net4go.ConnOption
+type wsSession struct {
+	*net4go.SessionOption
 	messageType MessageType
 
 	conn *websocket.Conn
@@ -39,76 +39,83 @@ const (
 	Binary
 )
 
-func NewConn(conn *websocket.Conn, messageType MessageType, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Conn {
-	var nc = &wsConn{}
-	nc.ConnOption = net4go.NewConnOption()
-	nc.messageType = messageType
-	nc.conn = conn
-	nc.protocol = protocol
-	nc.handler = handler
+func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Session {
+	var ns = &wsSession{}
+	ns.SessionOption = net4go.NewSessionOption()
+	ns.messageType = messageType
+	ns.conn = conn
+	ns.protocol = protocol
+	ns.handler = handler
 
 	if messageType != Text && messageType != Binary {
-		nc.messageType = Text
+		ns.messageType = Text
 	}
 
 	for _, opt := range opts {
-		opt.Apply(nc.ConnOption)
+		opt.Apply(ns.SessionOption)
 	}
 
-	nc.closed = 0
-	nc.mu = &sync.Mutex{}
-	nc.wQueue = net4go.NewQueue()
+	ns.closed = 0
+	ns.mu = &sync.Mutex{}
+	ns.wQueue = net4go.NewQueue()
 
-	//nc.pongWait = nc.ReadTimeout
-	//nc.pingPeriod = (nc.pongWait * 9) / 10
+	ns.run()
 
-	nc.run()
-
-	return nc
+	return ns
 }
 
-func (this *wsConn) Conn() interface{} {
+func (this *wsSession) Conn() interface{} {
 	return this.conn
 }
 
-func (this *wsConn) SetId(id uint64) {
+func (this *wsSession) SetId(id uint64) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	this.id = id
 }
 
-func (this *wsConn) GetId() uint64 {
+func (this *wsSession) GetId() uint64 {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	return this.id
 }
 
-func (this *wsConn) UpdateHandler(handler net4go.Handler) {
+func (this *wsSession) UpdateHandler(handler net4go.Handler) {
 	this.handler = handler
 }
 
-func (this *wsConn) Set(key string, value interface{}) {
+func (this *wsSession) Set(key string, value interface{}) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.data == nil {
 		this.data = make(map[string]interface{})
 	}
 	this.data[key] = value
 }
 
-func (this *wsConn) Get(key string) interface{} {
+func (this *wsSession) Get(key string) interface{} {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.data == nil {
 		return nil
 	}
 	return this.data[key]
 }
 
-func (this *wsConn) Del(key string) {
+func (this *wsSession) Del(key string) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
 	if this.data == nil {
 		return
 	}
 	delete(this.data, key)
 }
 
-func (this *wsConn) Closed() bool {
+func (this *wsSession) Closed() bool {
 	return atomic.LoadInt32(&this.closed) != 0
 }
 
-func (this *wsConn) run() {
+func (this *wsSession) run() {
 	if this.Closed() {
 		return
 	}
@@ -122,14 +129,8 @@ func (this *wsConn) run() {
 	w.Wait()
 }
 
-func (this *wsConn) readLoop(w *sync.WaitGroup) {
+func (this *wsSession) readLoop(w *sync.WaitGroup) {
 	this.conn.SetReadLimit(int64(this.ReadBufferSize))
-
-	//this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
-	//this.conn.SetPongHandler(func(string) error {
-	//	this.conn.SetReadDeadline(time.Now().Add(this.pongWait))
-	//	return nil
-	//})
 
 	w.Done()
 
@@ -163,9 +164,7 @@ ReadLoop:
 	this.wQueue.Enqueue(nil)
 }
 
-func (this *wsConn) writeLoop(w *sync.WaitGroup) {
-	//var ticker = time.NewTicker(this.pingPeriod)
-
+func (this *wsSession) writeLoop(w *sync.WaitGroup) {
 	w.Done()
 
 	var err error
@@ -186,34 +185,12 @@ WriteLoop:
 				break WriteLoop
 			}
 		}
-
-		//select {
-		//case <-this.closeChan:
-		//	break WriteLoop
-		//case <-ticker.C:
-		//	if err = this.writeMessage(websocket.PingMessage, nil); err != nil {
-		//		break WriteLoop
-		//	}
-		//default:
-		//	select {
-		//	case p, ok := <-this.writeBuffer:
-		//		if ok == false {
-		//			break WriteLoop
-		//		}
-		//
-		//		if _, err = this.Write(p); err != nil {
-		//			break WriteLoop
-		//		}
-		//	case <-time.After(time.Second * 5):
-		//	}
-		//}
 	}
 
-	//ticker.Stop()
 	this.close(err)
 }
 
-func (this *wsConn) AsyncWritePacket(p net4go.Packet) (err error) {
+func (this *wsSession) AsyncWritePacket(p net4go.Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -221,7 +198,7 @@ func (this *wsConn) AsyncWritePacket(p net4go.Packet) (err error) {
 	return this.AsyncWrite(pData)
 }
 
-func (this *wsConn) WritePacket(p net4go.Packet) (err error) {
+func (this *wsSession) WritePacket(p net4go.Packet) (err error) {
 	pData, err := this.protocol.Marshal(p)
 	if err != nil {
 		return err
@@ -230,9 +207,9 @@ func (this *wsConn) WritePacket(p net4go.Packet) (err error) {
 	return err
 }
 
-func (this *wsConn) AsyncWrite(b []byte) (err error) {
+func (this *wsSession) AsyncWrite(b []byte) (err error) {
 	if this.Closed() || this.conn == nil {
-		return net4go.ErrConnClosed
+		return net4go.ErrSessionClosed
 	}
 
 	if len(b) == 0 {
@@ -243,9 +220,9 @@ func (this *wsConn) AsyncWrite(b []byte) (err error) {
 	return nil
 }
 
-func (this *wsConn) Write(b []byte) (n int, err error) {
+func (this *wsSession) Write(b []byte) (n int, err error) {
 	if this.Closed() || this.conn == nil {
-		return 0, net4go.ErrConnClosed
+		return 0, net4go.ErrSessionClosed
 	}
 
 	if len(b) == 0 {
@@ -267,26 +244,7 @@ func (this *wsConn) Write(b []byte) (n int, err error) {
 	return len(b), nil
 }
 
-//func (this *wsConn) writeMessage(messageType int, data []byte) (err error) {
-//	if this.conn == nil {
-//		return net4go.ErrConnClosed
-//	}
-//
-//	if this.WriteTimeout > 0 {
-//		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
-//	}
-//
-//	select {
-//	case <-this.closeChan:
-//		return net4go.ErrConnClosed
-//	default:
-//		this.mu.Lock()
-//		defer this.mu.Unlock()
-//		return this.conn.WriteMessage(messageType, data)
-//	}
-//}
-
-func (this *wsConn) close(err error) {
+func (this *wsSession) close(err error) {
 	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
 		return
 	}
@@ -298,32 +256,17 @@ func (this *wsConn) close(err error) {
 
 	this.data = nil
 	this.handler = nil
-
-	//this.closeOnce.Do(func() {
-	//	close(this.closeChan)
-	//	close(this.writeBuffer)
-	//
-	//	this.writeBuffer = nil
-	//
-	//	this.conn.Close()
-	//	if this.handler != nil {
-	//		this.handler.OnClose(this, err)
-	//	}
-	//
-	//	this.data = nil
-	//	this.handler = nil
-	//})
 }
 
-func (this *wsConn) Close() error {
+func (this *wsSession) Close() error {
 	this.close(nil)
 	return nil
 }
 
-func (this *wsConn) LocalAddr() net.Addr {
+func (this *wsSession) LocalAddr() net.Addr {
 	return this.conn.LocalAddr()
 }
 
-func (this *wsConn) RemoteAddr() net.Addr {
+func (this *wsSession) RemoteAddr() net.Addr {
 	return this.conn.RemoteAddr()
 }

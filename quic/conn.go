@@ -20,5 +20,5 @@ func (this *Conn) RemoteAddr() net.Addr {
 
 func (this *Conn) Close() error {
 	this.Stream.Close()
-	return this.sess.CloseWithError(quic.ErrorCode(0), "")
+	return this.sess.CloseWithError(quic.ApplicationErrorCode(0), "")
 }

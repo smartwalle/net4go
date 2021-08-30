@@ -31,7 +31,7 @@ func (this *Listener) Accept() (net.Conn, error) {
 	}
 	stream, err := sess.AcceptStream(context.Background())
 	if err != nil {
-		sess.CloseWithError(quic.ErrorCode(0), err.Error())
+		sess.CloseWithError(quic.ApplicationErrorCode(0), err.Error())
 		return nil, err
 	}
 	c := &Conn{sess: sess, Stream: stream}
