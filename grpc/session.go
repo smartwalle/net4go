@@ -131,7 +131,6 @@ ReadLoop:
 			}
 		}
 	}
-
 	this.wQueue.Enqueue(nil)
 }
 

@@ -160,7 +160,6 @@ ReadLoop:
 			}
 		}
 	}
-
 	this.wQueue.Enqueue(nil)
 }
 
@@ -186,7 +185,6 @@ WriteLoop:
 			}
 		}
 	}
-
 	this.close(err)
 }
 
