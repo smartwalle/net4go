@@ -22,6 +22,7 @@ type wsSession struct {
 
 	protocol net4go.Protocol
 	handler  net4go.Handler
+	readCond *sync.Cond
 
 	closed int32
 	mu     *sync.Mutex
@@ -46,6 +47,7 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
+	ns.readCond = sync.NewCond(&sync.Mutex{})
 
 	if messageType != Text && messageType != Binary {
 		ns.messageType = Text
@@ -81,7 +83,11 @@ func (this *wsSession) GetId() uint64 {
 }
 
 func (this *wsSession) UpdateHandler(handler net4go.Handler) {
+	this.readCond.L.Lock()
 	this.handler = handler
+	this.readCond.L.Unlock()
+
+	this.readCond.Signal()
 }
 
 func (this *wsSession) Set(key string, value interface{}) {
@@ -140,6 +146,15 @@ func (this *wsSession) readLoop(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
+		this.readCond.L.Lock()
+		for this.handler == nil {
+			if this.Closed() {
+				break ReadLoop
+			}
+			this.readCond.Wait()
+		}
+		this.readCond.L.Unlock()
+
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
@@ -248,6 +263,8 @@ func (this *wsSession) close(err error) {
 	}
 
 	this.conn.Close()
+	this.readCond.Signal()
+
 	if this.handler != nil {
 		this.handler.OnClose(this, err)
 	}

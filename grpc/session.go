@@ -15,7 +15,8 @@ type grpcSession struct {
 
 	data map[string]interface{}
 
-	handler net4go.Handler
+	handler  net4go.Handler
+	readCond *sync.Cond
 
 	closed int32
 	mu     *sync.Mutex
@@ -28,6 +29,7 @@ func NewSession(stream Stream, handler net4go.Handler) net4go.Session {
 	ns.SessionOption = net4go.NewSessionOption()
 	ns.stream = stream
 	ns.handler = handler
+	ns.readCond = sync.NewCond(&sync.Mutex{})
 
 	//for _, opt := range opts {
 	//	opt.Apply(ns.SessionOption)
@@ -59,7 +61,11 @@ func (this *grpcSession) GetId() uint64 {
 }
 
 func (this *grpcSession) UpdateHandler(handler net4go.Handler) {
+	this.readCond.L.Lock()
 	this.handler = handler
+	this.readCond.L.Unlock()
+
+	this.readCond.Signal()
 }
 
 func (this *grpcSession) Set(key string, value interface{}) {
@@ -117,6 +123,15 @@ func (this *grpcSession) readLoop(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
+		this.readCond.L.Lock()
+		for this.handler == nil {
+			if this.Closed() {
+				break ReadLoop
+			}
+			this.readCond.Wait()
+		}
+		this.readCond.L.Unlock()
+
 		msg, err = this.stream.RecvPacket()
 		if err != nil {
 			break ReadLoop
@@ -189,6 +204,8 @@ func (this *grpcSession) close(err error) {
 	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
 		return
 	}
+
+	this.readCond.Signal()
 
 	this.stream.OnClose(err)
 	if this.handler != nil {

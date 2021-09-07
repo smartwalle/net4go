@@ -209,6 +209,7 @@ type rawSession struct {
 
 	protocol Protocol
 	handler  Handler
+	readCond *sync.Cond
 
 	closed int32
 	mu     *sync.Mutex
@@ -222,6 +223,7 @@ func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Optio
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
+	ns.readCond = sync.NewCond(&sync.Mutex{})
 
 	for _, opt := range opts {
 		opt.Apply(ns.SessionOption)
@@ -265,7 +267,11 @@ func (this *rawSession) GetId() uint64 {
 }
 
 func (this *rawSession) UpdateHandler(handler Handler) {
+	this.readCond.L.Lock()
 	this.handler = handler
+	this.readCond.L.Unlock()
+
+	this.readCond.Signal()
 }
 
 func (this *rawSession) Set(key string, value interface{}) {
@@ -321,6 +327,15 @@ func (this *rawSession) readLoop(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
+		this.readCond.L.Lock()
+		for this.handler == nil {
+			if this.Closed() {
+				break ReadLoop
+			}
+			this.readCond.Wait()
+		}
+		this.readCond.L.Unlock()
+
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
@@ -431,6 +446,8 @@ func (this *rawSession) close(err error) {
 	}
 
 	this.conn.Close()
+	this.readCond.Signal()
+
 	if this.handler != nil {
 		this.handler.OnClose(this, err)
 	}
