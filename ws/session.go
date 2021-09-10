@@ -22,7 +22,7 @@ type wsSession struct {
 
 	protocol net4go.Protocol
 	handler  net4go.Handler
-	readCond *sync.Cond
+	hCond    *sync.Cond
 
 	closed int32
 	mu     *sync.Mutex
@@ -47,7 +47,7 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
-	ns.readCond = sync.NewCond(&sync.Mutex{})
+	ns.hCond = sync.NewCond(&sync.Mutex{})
 
 	if messageType != Text && messageType != Binary {
 		ns.messageType = Text
@@ -83,11 +83,11 @@ func (this *wsSession) GetId() uint64 {
 }
 
 func (this *wsSession) UpdateHandler(handler net4go.Handler) {
-	this.readCond.L.Lock()
+	this.hCond.L.Lock()
 	this.handler = handler
-	this.readCond.L.Unlock()
+	this.hCond.L.Unlock()
 
-	this.readCond.Signal()
+	this.hCond.Signal()
 }
 
 func (this *wsSession) Set(key string, value interface{}) {
@@ -146,15 +146,6 @@ func (this *wsSession) readLoop(w *sync.WaitGroup) {
 
 ReadLoop:
 	for {
-		this.readCond.L.Lock()
-		for this.handler == nil {
-			if this.Closed() {
-				break ReadLoop
-			}
-			this.readCond.Wait()
-		}
-		this.readCond.L.Unlock()
-
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
@@ -168,8 +159,21 @@ ReadLoop:
 		}
 		this.conn.SetReadDeadline(time.Time{})
 
-		var h = this.handler
-		if p != nil && h != nil {
+		if p != nil {
+			var h = this.handler
+			if h == nil {
+				this.hCond.L.Lock()
+				for this.handler == nil {
+					if this.Closed() {
+						this.hCond.L.Unlock()
+						break ReadLoop
+					}
+					this.hCond.Wait()
+				}
+				h = this.handler
+				this.hCond.L.Unlock()
+			}
+
 			if h.OnMessage(this, p) == false {
 				break ReadLoop
 			}
@@ -263,7 +267,7 @@ func (this *wsSession) close(err error) {
 	}
 
 	this.conn.Close()
-	this.readCond.Signal()
+	this.hCond.Signal()
 
 	if this.handler != nil {
 		this.handler.OnClose(this, err)
