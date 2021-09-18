@@ -7,26 +7,23 @@ import (
 
 type Queue struct {
 	items []net4go.Packet
-	mu    sync.Mutex
 	cond  *sync.Cond
 }
 
 func (this *Queue) Enqueue(msg net4go.Packet) {
-	this.mu.Lock()
+	this.cond.L.Lock()
 	this.items = append(this.items, msg)
-	this.mu.Unlock()
+	this.cond.L.Unlock()
 
 	this.cond.Signal()
 }
 
 func (this *Queue) Dequeue(items *[]net4go.Packet) {
-	this.mu.Lock()
+	this.cond.L.Lock()
 	for len(this.items) == 0 {
 		this.cond.Wait()
 	}
-	this.mu.Unlock()
 
-	this.mu.Lock()
 	for _, item := range this.items {
 		*items = append(*items, item)
 		if item == nil {
@@ -35,12 +32,11 @@ func (this *Queue) Dequeue(items *[]net4go.Packet) {
 	}
 
 	this.items = this.items[0:0]
-
-	this.mu.Unlock()
+	this.cond.L.Unlock()
 }
 
 func NewQueue() *Queue {
 	var q = &Queue{}
-	q.cond = sync.NewCond(&q.mu)
+	q.cond = sync.NewCond(&sync.Mutex{})
 	return q
 }
