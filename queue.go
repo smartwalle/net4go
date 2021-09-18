@@ -18,10 +18,6 @@ func (this *Queue) Enqueue(msg []byte) {
 	this.cond.Signal()
 }
 
-func (this *Queue) Reset() {
-	this.items = this.items[0:0]
-}
-
 func (this *Queue) Dequeue(items *[][]byte) {
 	this.mu.Lock()
 	for len(this.items) == 0 {
@@ -37,7 +33,7 @@ func (this *Queue) Dequeue(items *[][]byte) {
 		}
 	}
 
-	this.Reset()
+	this.items = this.items[0:0]
 
 	this.mu.Unlock()
 }

@@ -19,10 +19,6 @@ func (this *Queue) Enqueue(msg net4go.Packet) {
 	this.cond.Signal()
 }
 
-func (this *Queue) Reset() {
-	this.items = this.items[0:0]
-}
-
 func (this *Queue) Dequeue(items *[]net4go.Packet) {
 	this.mu.Lock()
 	for len(this.items) == 0 {
@@ -38,7 +34,7 @@ func (this *Queue) Dequeue(items *[]net4go.Packet) {
 		}
 	}
 
-	this.Reset()
+	this.items = this.items[0:0]
 
 	this.mu.Unlock()
 }
