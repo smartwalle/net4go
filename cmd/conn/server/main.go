@@ -129,15 +129,13 @@ func generateTLSConfig() *tls.Config {
 type ServerHandler struct {
 }
 
-func (this *ServerHandler) OnMessage(sess net4go.Session, packet net4go.Packet) bool {
+func (this *ServerHandler) OnMessage(sess net4go.Session, packet net4go.Packet) {
 	fmt.Println("OnMessage", packet)
 
 	var p = &protocol.Packet{}
 	p.Type = 2
 	p.Message = "这是服务器端回复的消息"
 	sess.AsyncWritePacket(p)
-
-	return true
 }
 
 func (this *ServerHandler) OnClose(sess net4go.Session, err error) {

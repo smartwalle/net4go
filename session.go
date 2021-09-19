@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -95,7 +94,7 @@ func (this *DefaultProtocol) Unmarshal(r io.Reader) (Packet, error) {
 }
 
 type Handler interface {
-	OnMessage(Session, Packet) bool
+	OnMessage(Session, Packet)
 
 	OnClose(Session, error)
 }
@@ -205,14 +204,14 @@ type rawSession struct {
 
 	id uint64
 
+	mu   *sync.Mutex
 	data map[string]interface{}
 
 	protocol Protocol
 	handler  Handler
 	hCond    *sync.Cond
 
-	closed int32
-	mu     *sync.Mutex
+	closed bool
 
 	wQueue *Queue
 }
@@ -223,14 +222,14 @@ func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Optio
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
-	ns.hCond = sync.NewCond(&sync.Mutex{})
+	ns.mu = &sync.Mutex{}
+	ns.hCond = sync.NewCond(ns.mu)
 
 	for _, opt := range opts {
 		opt.Apply(ns.SessionOption)
 	}
 
-	ns.closed = 0
-	ns.mu = &sync.Mutex{}
+	ns.closed = false
 	ns.wQueue = NewQueue()
 
 	if tcpConn, ok := ns.conn.(*net.TCPConn); ok {
@@ -302,7 +301,9 @@ func (this *rawSession) Del(key string) {
 }
 
 func (this *rawSession) Closed() bool {
-	return atomic.LoadInt32(&this.closed) != 0
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.closed
 }
 
 func (this *rawSession) run() {
@@ -341,7 +342,7 @@ ReadLoop:
 			if h == nil {
 				this.hCond.L.Lock()
 				for this.handler == nil {
-					if this.Closed() {
+					if this.closed {
 						this.hCond.L.Unlock()
 						break ReadLoop
 					}
@@ -351,9 +352,7 @@ ReadLoop:
 				this.hCond.L.Unlock()
 			}
 
-			if h.OnMessage(this, p) == false {
-				break ReadLoop
-			}
+			h.OnMessage(this, p)
 		}
 	}
 	this.wQueue.Enqueue(nil)
@@ -445,9 +444,13 @@ func (this *rawSession) Write(b []byte) (n int, err error) {
 }
 
 func (this *rawSession) close(err error) {
-	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
+	this.mu.Lock()
+	if this.closed {
+		this.mu.Unlock()
 		return
 	}
+	this.closed = true
+	this.mu.Unlock()
 
 	this.conn.Close()
 	this.hCond.Signal()

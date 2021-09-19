@@ -39,9 +39,8 @@ func main() {
 type TCPHandler struct {
 }
 
-func (this *TCPHandler) OnMessage(sess net4go.Session, packet net4go.Packet) bool {
+func (this *TCPHandler) OnMessage(sess net4go.Session, packet net4go.Packet) {
 	//fmt.Println("OnMessage", packet)
-	return true
 }
 
 func (this *TCPHandler) OnClose(sess net4go.Session, err error) {

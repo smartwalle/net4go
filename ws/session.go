@@ -6,7 +6,6 @@ import (
 	"github.com/smartwalle/net4go"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -18,14 +17,14 @@ type wsSession struct {
 
 	id uint64
 
+	mu   *sync.Mutex
 	data map[string]interface{}
 
 	protocol net4go.Protocol
 	handler  net4go.Handler
 	hCond    *sync.Cond
 
-	closed int32
-	mu     *sync.Mutex
+	closed bool
 
 	wQueue *net4go.Queue
 
@@ -47,7 +46,8 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
-	ns.hCond = sync.NewCond(&sync.Mutex{})
+	ns.mu = &sync.Mutex{}
+	ns.hCond = sync.NewCond(ns.mu)
 
 	if messageType != Text && messageType != Binary {
 		ns.messageType = Text
@@ -57,8 +57,7 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 		opt.Apply(ns.SessionOption)
 	}
 
-	ns.closed = 0
-	ns.mu = &sync.Mutex{}
+	ns.closed = false
 	ns.wQueue = net4go.NewQueue()
 
 	ns.run()
@@ -118,7 +117,9 @@ func (this *wsSession) Del(key string) {
 }
 
 func (this *wsSession) Closed() bool {
-	return atomic.LoadInt32(&this.closed) != 0
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.closed
 }
 
 func (this *wsSession) run() {
@@ -164,7 +165,7 @@ ReadLoop:
 			if h == nil {
 				this.hCond.L.Lock()
 				for this.handler == nil {
-					if this.Closed() {
+					if this.closed {
 						this.hCond.L.Unlock()
 						break ReadLoop
 					}
@@ -174,9 +175,7 @@ ReadLoop:
 				this.hCond.L.Unlock()
 			}
 
-			if h.OnMessage(this, p) == false {
-				break ReadLoop
-			}
+			h.OnMessage(this, p)
 		}
 	}
 	this.wQueue.Enqueue(nil)
@@ -262,9 +261,13 @@ func (this *wsSession) Write(b []byte) (n int, err error) {
 }
 
 func (this *wsSession) close(err error) {
-	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
+	this.mu.Lock()
+	if this.closed {
+		this.mu.Unlock()
 		return
 	}
+	this.closed = true
+	this.mu.Unlock()
 
 	this.conn.Close()
 	this.hCond.Signal()

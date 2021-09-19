@@ -3,7 +3,6 @@ package grpc
 import (
 	"github.com/smartwalle/net4go"
 	"sync"
-	"sync/atomic"
 )
 
 type grpcSession struct {
@@ -13,13 +12,13 @@ type grpcSession struct {
 
 	id uint64
 
+	mu   *sync.Mutex
 	data map[string]interface{}
 
 	handler net4go.Handler
 	hCond   *sync.Cond
 
-	closed int32
-	mu     *sync.Mutex
+	closed bool
 
 	wQueue *Queue
 }
@@ -29,14 +28,14 @@ func NewSession(stream Stream, handler net4go.Handler) net4go.Session {
 	ns.SessionOption = net4go.NewSessionOption()
 	ns.stream = stream
 	ns.handler = handler
-	ns.hCond = sync.NewCond(&sync.Mutex{})
+	ns.mu = &sync.Mutex{}
+	ns.hCond = sync.NewCond(ns.mu)
 
 	//for _, opt := range opts {
 	//	opt.Apply(ns.SessionOption)
 	//}
 
-	ns.closed = 0
-	ns.mu = &sync.Mutex{}
+	ns.closed = false
 	ns.wQueue = NewQueue()
 
 	ns.run()
@@ -97,7 +96,9 @@ func (this *grpcSession) Del(key string) {
 }
 
 func (this *grpcSession) Closed() bool {
-	return atomic.LoadInt32(&this.closed) != 0
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	return this.closed
 }
 
 func (this *grpcSession) run() {
@@ -135,7 +136,7 @@ ReadLoop:
 			if h == nil {
 				this.hCond.L.Lock()
 				for this.handler == nil {
-					if this.Closed() {
+					if this.closed {
 						this.hCond.L.Unlock()
 						break ReadLoop
 					}
@@ -145,9 +146,7 @@ ReadLoop:
 				this.hCond.L.Unlock()
 			}
 
-			if h.OnMessage(this, p) == false {
-				break ReadLoop
-			}
+			h.OnMessage(this, p)
 		}
 	}
 	this.wQueue.Enqueue(nil)
@@ -205,9 +204,13 @@ func (this *grpcSession) WritePacket(p net4go.Packet) (err error) {
 }
 
 func (this *grpcSession) close(err error) {
-	if old := atomic.SwapInt32(&this.closed, 1); old != 0 {
+	this.mu.Lock()
+	if this.closed {
+		this.mu.Unlock()
 		return
 	}
+	this.closed = true
+	this.mu.Unlock()
 
 	this.hCond.Signal()
 
