@@ -429,7 +429,9 @@ func (this *rawSession) Write(b []byte) (n int, err error) {
 	var total = len(b)
 	for pos := 0; pos < total; {
 		if this.WriteTimeout > 0 {
-			this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
+			if err = this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout)); err != nil {
+				return 0, err
+			}
 		}
 
 		n, err = this.conn.Write(b[pos:])
@@ -439,7 +441,7 @@ func (this *rawSession) Write(b []byte) (n int, err error) {
 			return pos, err
 		}
 	}
-	this.conn.SetWriteDeadline(time.Time{})
+	err = this.conn.SetWriteDeadline(time.Time{})
 	return n, err
 }
 

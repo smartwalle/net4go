@@ -246,7 +246,9 @@ func (this *wsSession) Write(b []byte) (n int, err error) {
 	}
 
 	if this.WriteTimeout > 0 {
-		this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout))
+		if err = this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout)); err != nil {
+			return 0, err
+		}
 	}
 
 	this.mu.Lock()
@@ -255,7 +257,9 @@ func (this *wsSession) Write(b []byte) (n int, err error) {
 	if err = this.conn.WriteMessage(int(this.messageType), b); err != nil {
 		return 0, err
 	}
-	this.conn.SetWriteDeadline(time.Time{})
+	if err = this.conn.SetWriteDeadline(time.Time{}); err != nil {
+		return 0, err
+	}
 
 	return len(b), nil
 }
