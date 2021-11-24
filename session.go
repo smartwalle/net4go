@@ -214,6 +214,7 @@ type rawSession struct {
 	closed bool
 
 	wQueue *Queue
+	rErr   error
 }
 
 func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Session {
@@ -323,7 +324,6 @@ func (this *rawSession) run() {
 func (this *rawSession) readLoop(w *sync.WaitGroup) {
 	w.Done()
 
-	var err error
 	var p Packet
 
 ReadLoop:
@@ -331,8 +331,8 @@ ReadLoop:
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
-		p, err = this.protocol.Unmarshal(this.conn)
-		if err != nil {
+		p, this.rErr = this.protocol.Unmarshal(this.conn)
+		if this.rErr != nil {
 			break ReadLoop
 		}
 		this.conn.SetReadDeadline(time.Time{})
@@ -372,6 +372,7 @@ WriteLoop:
 
 		for _, item := range writeList {
 			if len(item) == 0 {
+				err = this.rErr
 				break WriteLoop
 			}
 

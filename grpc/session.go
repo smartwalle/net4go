@@ -21,6 +21,7 @@ type grpcSession struct {
 	closed bool
 
 	wQueue *Queue
+	rErr   error
 }
 
 func NewSession(stream Stream, handler net4go.Handler) net4go.Session {
@@ -118,14 +119,13 @@ func (this *grpcSession) run() {
 func (this *grpcSession) readLoop(w *sync.WaitGroup) {
 	w.Done()
 
-	var err error
 	var msg interface{}
 	var p net4go.Packet
 
 ReadLoop:
 	for {
-		msg, err = this.stream.RecvPacket()
-		if err != nil {
+		msg, this.rErr = this.stream.RecvPacket()
+		if this.rErr != nil {
 			break ReadLoop
 		}
 
@@ -166,6 +166,7 @@ WriteLoop:
 
 		for _, item := range writeList {
 			if item == nil {
+				err = this.rErr
 				break WriteLoop
 			}
 

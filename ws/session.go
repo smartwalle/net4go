@@ -27,6 +27,7 @@ type wsSession struct {
 	closed bool
 
 	wQueue *net4go.Queue
+	rErr   error
 
 	//pongWait   time.Duration
 	//pingPeriod time.Duration
@@ -141,7 +142,6 @@ func (this *wsSession) readLoop(w *sync.WaitGroup) {
 
 	w.Done()
 
-	var err error
 	var p net4go.Packet
 	var msg []byte
 
@@ -150,12 +150,12 @@ ReadLoop:
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
-		_, msg, err = this.conn.ReadMessage()
-		if err != nil {
+		_, msg, this.rErr = this.conn.ReadMessage()
+		if this.rErr != nil {
 			break ReadLoop
 		}
-		p, err = this.protocol.Unmarshal(bytes.NewReader(msg))
-		if err != nil {
+		p, this.rErr = this.protocol.Unmarshal(bytes.NewReader(msg))
+		if this.rErr != nil {
 			break ReadLoop
 		}
 		this.conn.SetReadDeadline(time.Time{})
@@ -195,6 +195,7 @@ WriteLoop:
 
 		for _, item := range writeList {
 			if len(item) == 0 {
+				err = this.rErr
 				break WriteLoop
 			}
 
