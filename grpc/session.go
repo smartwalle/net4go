@@ -224,6 +224,7 @@ func (this *grpcSession) close(err error) {
 
 	this.data = nil
 	this.handler = nil
+	this.Limiter = nil
 }
 
 func (this *grpcSession) Close() error {

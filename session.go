@@ -470,6 +470,7 @@ func (this *rawSession) close(err error) {
 
 	this.data = nil
 	this.handler = nil
+	this.Limiter = nil
 }
 
 func (this *rawSession) Close() error {
