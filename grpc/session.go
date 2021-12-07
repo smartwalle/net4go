@@ -24,7 +24,7 @@ type grpcSession struct {
 	rErr   error
 }
 
-func NewSession(stream Stream, handler net4go.Handler) net4go.Session {
+func NewSession(stream Stream, handler net4go.Handler, opts ...net4go.Option) net4go.Session {
 	var ns = &grpcSession{}
 	ns.SessionOption = net4go.NewSessionOption()
 	ns.stream = stream
@@ -32,9 +32,11 @@ func NewSession(stream Stream, handler net4go.Handler) net4go.Session {
 	ns.mu = &sync.Mutex{}
 	ns.hCond = sync.NewCond(ns.mu)
 
-	//for _, opt := range opts {
-	//	opt.Apply(ns.SessionOption)
-	//}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(ns.SessionOption)
+		}
+	}
 
 	ns.closed = false
 	ns.wQueue = NewQueue()

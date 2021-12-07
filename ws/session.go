@@ -55,7 +55,9 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 	}
 
 	for _, opt := range opts {
-		opt.Apply(ns.SessionOption)
+		if opt != nil {
+			opt(ns.SessionOption)
+		}
 	}
 
 	ns.closed = false
