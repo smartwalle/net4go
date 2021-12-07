@@ -12,12 +12,22 @@ import (
 	"github.com/smartwalle/net4go/cmd/conn/protocol"
 	"github.com/smartwalle/net4go/quic"
 	"github.com/smartwalle/net4go/ws"
+	"go.uber.org/ratelimit"
 	"math/big"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 )
+
+type Limiter struct {
+	Limiter ratelimit.Limiter
+}
+
+func (this *Limiter) Allow() bool {
+	this.Limiter.Take()
+	return true
+}
 
 var sessList = make(map[net4go.Session]time.Time)
 var sessMu = &sync.Mutex{}
@@ -48,7 +58,11 @@ func serveTcp(h net4go.Handler) {
 			continue
 		}
 
-		var nSess = net4go.NewSession(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10))
+		var limiter = &Limiter{
+			Limiter: ratelimit.New(10),
+		}
+
+		var nSess = net4go.NewSession(c, p, h, net4go.WithNoDelay(false), net4go.WithReadTimeout(time.Second*15), net4go.WithWriteTimeout(time.Second*10), net4go.WithLimiter(limiter))
 
 		sessMu.Lock()
 		sessList[nSess] = time.Now()
@@ -130,7 +144,7 @@ type ServerHandler struct {
 }
 
 func (this *ServerHandler) OnMessage(sess net4go.Session, packet net4go.Packet) {
-	fmt.Println("OnMessage", packet)
+	fmt.Println("OnMessage", packet, time.Now())
 
 	var p = &protocol.Packet{}
 	p.Type = 2

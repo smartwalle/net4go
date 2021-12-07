@@ -107,6 +107,7 @@ type SessionOption struct {
 	WriteBufferSize int
 
 	NoDelay bool
+	Limiter Limiter
 }
 
 func NewSessionOption() *SessionOption {
@@ -121,56 +122,54 @@ func NewSessionOption() *SessionOption {
 	return opt
 }
 
-type Option interface {
-	Apply(conn *SessionOption)
-}
-
-type OptionFunc func(*SessionOption)
-
-func (f OptionFunc) Apply(c *SessionOption) {
-	f(c)
-}
+type Option func(*SessionOption)
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *SessionOption) {
+	return func(opt *SessionOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
-		c.WriteTimeout = timeout
-	})
+		opt.WriteTimeout = timeout
+	}
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return OptionFunc(func(c *SessionOption) {
+	return func(opt *SessionOption) {
 		if timeout < 0 {
 			timeout = 0
 		}
-		c.ReadTimeout = timeout
-	})
+		opt.ReadTimeout = timeout
+	}
 }
 
 func WithReadBufferSize(size int) Option {
-	return OptionFunc(func(c *SessionOption) {
+	return func(opt *SessionOption) {
 		//if size < 0 {
 		//	size = ConnReadBufferSize
 		//}
-		c.ReadBufferSize = size
-	})
+		opt.ReadBufferSize = size
+	}
 }
 
 func WithWriteBufferSize(size int) Option {
-	return OptionFunc(func(c *SessionOption) {
+	return func(opt *SessionOption) {
 		//if size < 0 {
 		//	size = ConnWriteBufferSize
 		//}
-		c.WriteBufferSize = size
-	})
+		opt.WriteBufferSize = size
+	}
 }
 
 func WithNoDelay(noDelay bool) Option {
-	return OptionFunc(func(c *SessionOption) {
-		c.NoDelay = noDelay
-	})
+	return func(opt *SessionOption) {
+		opt.NoDelay = noDelay
+	}
+}
+
+func WithLimiter(limiter Limiter) Option {
+	return func(opt *SessionOption) {
+		opt.Limiter = limiter
+	}
 }
 
 type Session interface {
@@ -227,7 +226,9 @@ func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Optio
 	ns.hCond = sync.NewCond(ns.mu)
 
 	for _, opt := range opts {
-		opt.Apply(ns.SessionOption)
+		if opt != nil {
+			opt(ns.SessionOption)
+		}
 	}
 
 	ns.closed = false
@@ -352,6 +353,11 @@ ReadLoop:
 				this.hCond.L.Unlock()
 			}
 
+			if this.Limiter != nil {
+				if this.Limiter.Allow() == false {
+					break ReadLoop
+				}
+			}
 			h.OnMessage(this, p)
 		}
 	}

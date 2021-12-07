@@ -5,6 +5,7 @@ require (
 	github.com/smartwalle/net4go v0.0.44
 	github.com/smartwalle/net4go/quic v0.0.4
 	github.com/smartwalle/net4go/ws v0.0.10
+	go.uber.org/ratelimit v0.2.0 // indirect
 )
 
 replace (
