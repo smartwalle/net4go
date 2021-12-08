@@ -280,6 +280,9 @@ func (this *wsSession) close(err error) {
 	this.hCond.Signal()
 
 	if this.handler != nil {
+		if this.Limiter != nil {
+			this.Limiter.Allow()
+		}
 		this.handler.OnClose(this, err)
 	}
 

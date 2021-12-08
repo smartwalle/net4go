@@ -219,6 +219,9 @@ func (this *grpcSession) close(err error) {
 
 	this.stream.OnClose(err)
 	if this.handler != nil {
+		if this.Limiter != nil {
+			this.Limiter.Allow()
+		}
 		this.handler.OnClose(this, err)
 	}
 
