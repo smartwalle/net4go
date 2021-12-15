@@ -207,6 +207,10 @@ func (this *grpcSession) WritePacket(p net4go.Packet) (err error) {
 }
 
 func (this *grpcSession) close(err error) {
+	if this == nil {
+		return
+	}
+
 	this.mu.Lock()
 	if this.closed {
 		this.mu.Unlock()

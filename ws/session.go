@@ -268,6 +268,10 @@ func (this *wsSession) Write(b []byte) (n int, err error) {
 }
 
 func (this *wsSession) close(err error) {
+	if this == nil {
+		return
+	}
+
 	this.mu.Lock()
 	if this.closed {
 		this.mu.Unlock()
