@@ -10,7 +10,7 @@ type grpcSession struct {
 
 	stream Stream
 
-	id uint64
+	id int64
 
 	mu   *sync.Mutex
 	data map[string]interface{}
@@ -50,13 +50,13 @@ func (this *grpcSession) Conn() interface{} {
 	return this.stream
 }
 
-func (this *grpcSession) SetId(id uint64) {
+func (this *grpcSession) SetId(id int64) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.id = id
 }
 
-func (this *grpcSession) GetId() uint64 {
+func (this *grpcSession) GetId() int64 {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	return this.id

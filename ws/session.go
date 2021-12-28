@@ -15,7 +15,7 @@ type wsSession struct {
 
 	conn *websocket.Conn
 
-	id uint64
+	id int64
 
 	mu   *sync.Mutex
 	data map[string]interface{}
@@ -72,13 +72,13 @@ func (this *wsSession) Conn() interface{} {
 	return this.conn
 }
 
-func (this *wsSession) SetId(id uint64) {
+func (this *wsSession) SetId(id int64) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.id = id
 }
 
-func (this *wsSession) GetId() uint64 {
+func (this *wsSession) GetId() int64 {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	return this.id

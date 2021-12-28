@@ -1,3 +1,5 @@
 github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/smartwalle/net4go v0.0.46/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
+github.com/smartwalle/net4go v0.0.48 h1:AXkMjinht5poG4DXUVr0Q6pPQwrEFuPO6PF7Wtd36V4=
+github.com/smartwalle/net4go v0.0.48/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
