@@ -121,34 +121,34 @@ func (this *grpcSession) run() {
 func (this *grpcSession) readLoop(w *sync.WaitGroup) {
 	w.Done()
 
-	var msg interface{}
-	var p net4go.Packet
+	var nPacket net4go.Packet
+	var nHandler net4go.Handler
+	var nLimiter = this.Limiter
 
 ReadLoop:
 	for {
-		msg, this.rErr = this.stream.RecvPacket()
+		nPacket, this.rErr = this.stream.RecvPacket()
 		if this.rErr != nil {
 			break ReadLoop
 		}
 
-		p, _ = msg.(net4go.Packet)
-
-		if p != nil {
-			var h = this.handler
-			if h == nil {
-				this.hCond.L.Lock()
-				for this.handler == nil {
-					if this.closed {
-						this.hCond.L.Unlock()
-						break ReadLoop
-					}
-					this.hCond.Wait()
+		if nPacket != nil {
+			this.hCond.L.Lock()
+			nHandler = this.handler
+			for nHandler == nil {
+				if this.closed {
+					this.hCond.L.Unlock()
+					break ReadLoop
 				}
-				h = this.handler
-				this.hCond.L.Unlock()
+				this.hCond.Wait()
+				nHandler = this.handler
 			}
+			this.hCond.L.Unlock()
 
-			h.OnMessage(this, p)
+			if nLimiter != nil && nLimiter.Allow() == false {
+				break ReadLoop
+			}
+			nHandler.OnMessage(this, nPacket)
 		}
 	}
 	this.wQueue.Enqueue(nil)
@@ -212,22 +212,24 @@ func (this *grpcSession) close(err error) {
 		this.mu.Unlock()
 		return
 	}
+	var nHandler = this.handler
+	var nLimiter = this.Limiter
+	this.handler = nil
+	this.Limiter = nil
 	this.closed = true
 	this.mu.Unlock()
 
 	this.hCond.Signal()
-
 	this.stream.OnClose(err)
-	if this.handler != nil {
-		if this.Limiter != nil {
-			this.Limiter.Allow()
+
+	if nHandler != nil {
+		if nLimiter != nil {
+			nLimiter.Allow()
 		}
-		this.handler.OnClose(this, err)
+		nHandler.OnClose(this, err)
 	}
 
 	this.data = nil
-	this.handler = nil
-	this.Limiter = nil
 }
 
 func (this *grpcSession) Close() error {

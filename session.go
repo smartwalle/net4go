@@ -325,40 +325,38 @@ func (this *rawSession) run() {
 func (this *rawSession) readLoop(w *sync.WaitGroup) {
 	w.Done()
 
-	var p Packet
+	var nPacket Packet
+	var nHandler Handler
+	var nLimiter = this.Limiter
 
 ReadLoop:
 	for {
 		if this.ReadTimeout > 0 {
 			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
 		}
-		p, this.rErr = this.protocol.Unmarshal(this.conn)
+		nPacket, this.rErr = this.protocol.Unmarshal(this.conn)
 		if this.rErr != nil {
 			break ReadLoop
 		}
 		this.conn.SetReadDeadline(time.Time{})
 
-		if p != nil {
-			var h = this.handler
-			if h == nil {
-				this.hCond.L.Lock()
-				for this.handler == nil {
-					if this.closed {
-						this.hCond.L.Unlock()
-						break ReadLoop
-					}
-					this.hCond.Wait()
-				}
-				h = this.handler
-				this.hCond.L.Unlock()
-			}
-
-			if this.Limiter != nil {
-				if this.Limiter.Allow() == false {
+		if nPacket != nil {
+			this.hCond.L.Lock()
+			nHandler = this.handler
+			for nHandler == nil {
+				if this.closed {
+					this.hCond.L.Unlock()
 					break ReadLoop
 				}
+				this.hCond.Wait()
+				nHandler = this.handler
 			}
-			h.OnMessage(this, p)
+			this.hCond.L.Unlock()
+
+			if nLimiter != nil && nLimiter.Allow() == false {
+				break ReadLoop
+			}
+			nHandler.OnMessage(this, nPacket)
 		}
 	}
 	this.wQueue.Enqueue(nil)
@@ -458,22 +456,24 @@ func (this *rawSession) close(err error) {
 		this.mu.Unlock()
 		return
 	}
+	var nHandler = this.handler
+	var nLimiter = this.Limiter
+	this.handler = nil
+	this.Limiter = nil
 	this.closed = true
 	this.mu.Unlock()
 
 	this.conn.Close()
 	this.hCond.Signal()
 
-	if this.handler != nil {
-		if this.Limiter != nil {
-			this.Limiter.Allow()
+	if nHandler != nil {
+		if nLimiter != nil {
+			nLimiter.Allow()
 		}
-		this.handler.OnClose(this, err)
+		nHandler.OnClose(this, err)
 	}
 
 	this.data = nil
-	this.handler = nil
-	this.Limiter = nil
 }
 
 func (this *rawSession) Close() error {

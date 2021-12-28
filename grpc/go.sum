@@ -1,2 +1,9 @@
-github.com/smartwalle/net4go v0.0.46 h1:ZadYDF1s6tawwXtv19Iv8tX302XPx6U8XDFWlpyTA4w=
+github.com/mattn/go-isatty v0.0.7 h1:UvyT9uN+3r7yLEYSlJsbQGdsaB/a0DlgWP3pql6iwOc=
+github.com/mattn/go-isatty v0.0.7/go.mod h1:Iq45c/XA43vh69/j3iqttzPXn0bhXyGjM0Hdxcsrc5s=
+github.com/smartwalle/log4go v1.0.4 h1:VSu2cWZZgBnFViNwf28I9HXT/KEhZ10FoKAQHxxU22Y=
+github.com/smartwalle/log4go v1.0.4/go.mod h1:VWki4hNafkDl2cRHxAYaNXqwxxDi9mCN3AY9oaDG7ME=
+github.com/smartwalle/mail4go v1.0.0 h1:MMOegzxDGKg1VsW34Qzn1ixwBS3Y+YYed/YVCrhlk3A=
+github.com/smartwalle/mail4go v1.0.0/go.mod h1:dZ42Jqnc7ob46j5imF1BOmKwKL1dkOl2+X396uuNI84=
 github.com/smartwalle/net4go v0.0.46/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
+golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223 h1:DH4skfRX4EBpamg7iV4ZlCpblAHI6s6TDM39bFZumv8=
+golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

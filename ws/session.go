@@ -144,7 +144,9 @@ func (this *wsSession) readLoop(w *sync.WaitGroup) {
 
 	w.Done()
 
-	var p net4go.Packet
+	var nPacket net4go.Packet
+	var nHandler net4go.Handler
+	var nLimiter = this.Limiter
 	var msg []byte
 
 ReadLoop:
@@ -156,28 +158,29 @@ ReadLoop:
 		if this.rErr != nil {
 			break ReadLoop
 		}
-		p, this.rErr = this.protocol.Unmarshal(bytes.NewReader(msg))
+		nPacket, this.rErr = this.protocol.Unmarshal(bytes.NewReader(msg))
 		if this.rErr != nil {
 			break ReadLoop
 		}
 		this.conn.SetReadDeadline(time.Time{})
 
-		if p != nil {
-			var h = this.handler
-			if h == nil {
-				this.hCond.L.Lock()
-				for this.handler == nil {
-					if this.closed {
-						this.hCond.L.Unlock()
-						break ReadLoop
-					}
-					this.hCond.Wait()
+		if nPacket != nil {
+			this.hCond.L.Lock()
+			nHandler = this.handler
+			for nHandler == nil {
+				if this.closed {
+					this.hCond.L.Unlock()
+					break ReadLoop
 				}
-				h = this.handler
-				this.hCond.L.Unlock()
+				this.hCond.Wait()
+				nHandler = this.handler
 			}
+			this.hCond.L.Unlock()
 
-			h.OnMessage(this, p)
+			if nLimiter != nil && nLimiter.Allow() == false {
+				break ReadLoop
+			}
+			nHandler.OnMessage(this, nPacket)
 		}
 	}
 	this.wQueue.Enqueue(nil)
@@ -273,22 +276,24 @@ func (this *wsSession) close(err error) {
 		this.mu.Unlock()
 		return
 	}
+	var nHandler = this.handler
+	var nLimiter = this.Limiter
+	this.handler = nil
+	this.Limiter = nil
 	this.closed = true
 	this.mu.Unlock()
 
 	this.conn.Close()
 	this.hCond.Signal()
 
-	if this.handler != nil {
-		if this.Limiter != nil {
-			this.Limiter.Allow()
+	if nHandler != nil {
+		if nLimiter != nil {
+			nLimiter.Allow()
 		}
-		this.handler.OnClose(this, err)
+		nHandler.OnClose(this, err)
 	}
 
 	this.data = nil
-	this.handler = nil
-	this.Limiter = nil
 }
 
 func (this *wsSession) Close() error {
