@@ -175,9 +175,9 @@ func WithLimiter(limiter Limiter) Option {
 type Session interface {
 	Conn() interface{}
 
-	SetId(uint64)
+	SetId(int64)
 
-	GetId() uint64
+	GetId() int64
 
 	UpdateHandler(handler Handler)
 
@@ -201,7 +201,7 @@ type rawSession struct {
 
 	conn net.Conn
 
-	id uint64
+	id int64
 
 	mu   *sync.Mutex
 	data map[string]interface{}
@@ -255,13 +255,13 @@ func (this *rawSession) Conn() interface{} {
 	return this.conn
 }
 
-func (this *rawSession) SetId(id uint64) {
+func (this *rawSession) SetId(id int64) {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	this.id = id
 }
 
-func (this *rawSession) GetId() uint64 {
+func (this *rawSession) GetId() int64 {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 	return this.id
