@@ -5,5 +5,7 @@ github.com/smartwalle/log4go v1.0.4/go.mod h1:VWki4hNafkDl2cRHxAYaNXqwxxDi9mCN3A
 github.com/smartwalle/mail4go v1.0.0 h1:MMOegzxDGKg1VsW34Qzn1ixwBS3Y+YYed/YVCrhlk3A=
 github.com/smartwalle/mail4go v1.0.0/go.mod h1:dZ42Jqnc7ob46j5imF1BOmKwKL1dkOl2+X396uuNI84=
 github.com/smartwalle/net4go v0.0.46/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
+github.com/smartwalle/net4go v0.0.48 h1:AXkMjinht5poG4DXUVr0Q6pPQwrEFuPO6PF7Wtd36V4=
+github.com/smartwalle/net4go v0.0.48/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
 golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223 h1:DH4skfRX4EBpamg7iV4ZlCpblAHI6s6TDM39bFZumv8=
 golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
