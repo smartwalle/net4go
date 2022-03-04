@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
-	"github.com/smartwalle/net4go/cmd/conn/protocol"
+	"github.com/smartwalle/net4go/examples/conn/protocol"
 	"github.com/smartwalle/net4go/quic"
 	"github.com/smartwalle/net4go/ws"
 	"go.uber.org/ratelimit"

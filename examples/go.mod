@@ -1,4 +1,4 @@
-module github.com/smartwalle/net4go/cmd
+module github.com/smartwalle/net4go/examples
 
 require (
 	github.com/gorilla/websocket v1.4.2
