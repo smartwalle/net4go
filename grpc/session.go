@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"github.com/smartwalle/net4go"
+	"github.com/smartwalle/queue/block"
 	"sync"
 )
 
@@ -20,7 +21,7 @@ type grpcSession struct {
 
 	closed bool
 
-	wQueue *Queue
+	wQueue block.Queue[net4go.Packet]
 	rErr   error
 }
 
@@ -39,7 +40,7 @@ func NewSession(stream Stream, handler net4go.Handler, opts ...net4go.Option) ne
 	}
 
 	ns.closed = false
-	ns.wQueue = NewQueue()
+	ns.wQueue = block.New[net4go.Packet]()
 
 	ns.run()
 
@@ -151,7 +152,7 @@ ReadLoop:
 			nHandler.OnMessage(this, nPacket)
 		}
 	}
-	this.wQueue.Enqueue(nil)
+	this.wQueue.Close()
 }
 
 func (this *grpcSession) writeLoop(w *sync.WaitGroup) {
@@ -164,17 +165,17 @@ WriteLoop:
 	for {
 		writeList = writeList[0:0]
 
-		this.wQueue.Dequeue(&writeList)
+		var ok = this.wQueue.Dequeue(&writeList)
 
 		for _, item := range writeList {
-			if item == nil {
-				err = this.rErr
-				break WriteLoop
-			}
-
 			if err = this.stream.SendPacket(item); err != nil {
 				break WriteLoop
 			}
+		}
+
+		if ok == false {
+			err = this.rErr
+			break WriteLoop
 		}
 	}
 	this.close(err)

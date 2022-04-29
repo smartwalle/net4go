@@ -6,4 +6,4 @@ require (
 	golang.org/x/tools v0.1.5 // indirect
 )
 
-go 1.12
+go 1.18

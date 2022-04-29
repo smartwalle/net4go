@@ -1,3 +1,7 @@
 module github.com/smartwalle/net4go
 
-go 1.12
+require (
+	github.com/smartwalle/queue v0.0.1
+)
+
+go 1.18

@@ -3,6 +3,7 @@ package net4go
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/smartwalle/queue/block"
 	"io"
 	"net"
 	"sync"
@@ -212,7 +213,7 @@ type rawSession struct {
 
 	closed bool
 
-	wQueue *Queue
+	wQueue block.Queue[[]byte]
 	rErr   error
 }
 
@@ -232,7 +233,7 @@ func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Optio
 	}
 
 	ns.closed = false
-	ns.wQueue = NewQueue()
+	ns.wQueue = block.New[[]byte]()
 
 	if tcpConn, ok := ns.conn.(*net.TCPConn); ok {
 		if ns.ReadBufferSize > 0 {
@@ -359,7 +360,7 @@ ReadLoop:
 			nHandler.OnMessage(this, nPacket)
 		}
 	}
-	this.wQueue.Enqueue(nil)
+	this.wQueue.Close()
 }
 
 func (this *rawSession) writeLoop(w *sync.WaitGroup) {
@@ -372,17 +373,17 @@ WriteLoop:
 	for {
 		writeList = writeList[0:0]
 
-		this.wQueue.Dequeue(&writeList)
+		var ok = this.wQueue.Dequeue(&writeList)
 
 		for _, item := range writeList {
-			if len(item) == 0 {
-				err = this.rErr
-				break WriteLoop
-			}
-
 			if _, err = this.Write(item); err != nil {
 				break WriteLoop
 			}
+		}
+
+		if ok == false {
+			err = this.rErr
+			break WriteLoop
 		}
 	}
 	this.close(err)

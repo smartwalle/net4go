@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/gorilla/websocket"
 	"github.com/smartwalle/net4go"
+	"github.com/smartwalle/queue/block"
 	"net"
 	"sync"
 	"time"
@@ -26,7 +27,7 @@ type wsSession struct {
 
 	closed bool
 
-	wQueue *net4go.Queue
+	wQueue block.Queue[[]byte]
 	rErr   error
 
 	//pongWait   time.Duration
@@ -61,7 +62,7 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 	}
 
 	ns.closed = false
-	ns.wQueue = net4go.NewQueue()
+	ns.wQueue = block.New[[]byte]()
 
 	ns.run()
 
@@ -183,7 +184,7 @@ ReadLoop:
 			nHandler.OnMessage(this, nPacket)
 		}
 	}
-	this.wQueue.Enqueue(nil)
+	this.wQueue.Close()
 }
 
 func (this *wsSession) writeLoop(w *sync.WaitGroup) {
@@ -196,17 +197,17 @@ WriteLoop:
 	for {
 		writeList = writeList[0:0]
 
-		this.wQueue.Dequeue(&writeList)
+		var ok = this.wQueue.Dequeue(&writeList)
 
 		for _, item := range writeList {
-			if len(item) == 0 {
-				err = this.rErr
-				break WriteLoop
-			}
-
 			if _, err = this.Write(item); err != nil {
 				break WriteLoop
 			}
+		}
+
+		if ok == false {
+			err = this.rErr
+			break WriteLoop
 		}
 	}
 	this.close(err)
