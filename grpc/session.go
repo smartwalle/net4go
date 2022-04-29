@@ -168,6 +168,11 @@ WriteLoop:
 		var ok = this.wQueue.Dequeue(&writeList)
 
 		for _, item := range writeList {
+			if item == nil {
+				err = this.rErr
+				break WriteLoop
+			}
+
 			if err = this.stream.SendPacket(item); err != nil {
 				break WriteLoop
 			}

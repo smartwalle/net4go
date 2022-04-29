@@ -200,6 +200,11 @@ WriteLoop:
 		var ok = this.wQueue.Dequeue(&writeList)
 
 		for _, item := range writeList {
+			if len(item) == 0 {
+				err = this.rErr
+				break WriteLoop
+			}
+
 			if _, err = this.Write(item); err != nil {
 				break WriteLoop
 			}
