@@ -2,12 +2,12 @@ module github.com/smartwalle/net4go/examples
 
 require (
 	github.com/gorilla/websocket v1.4.2
-	github.com/smartwalle/net4go v0.0.48
-	//github.com/smartwalle/net4go/quic v0.0.4
-	github.com/smartwalle/net4go/ws v0.0.10
+	github.com/smartwalle/net4go v0.0.49
+	github.com/smartwalle/queue v0.0.2
 	go.uber.org/ratelimit v0.2.0
-	github.com/smartwalle/queue v0.0.1
 )
+
+require github.com/smartwalle/net4go/ws v0.0.20 // indirect
 
 replace (
 	github.com/smartwalle/net4go => ../
