@@ -21,8 +21,8 @@ type Packet interface {
 }
 
 type DefaultPacket struct {
-	pType uint16
 	data  []byte
+	pType uint16
 }
 
 func (this *DefaultPacket) MarshalPacket() ([]byte, error) {
@@ -101,14 +101,12 @@ type Handler interface {
 }
 
 type SessionOption struct {
-	WriteTimeout time.Duration
-	ReadTimeout  time.Duration
-
+	Limiter         Limiter
+	WriteTimeout    time.Duration
+	ReadTimeout     time.Duration
 	ReadBufferSize  int
 	WriteBufferSize int
-
-	NoDelay bool
-	Limiter Limiter
+	NoDelay         bool
 }
 
 func NewSessionOption() *SessionOption {
@@ -198,28 +196,22 @@ type Session interface {
 }
 
 type rawSession struct {
-	*SessionOption
-
-	conn net.Conn
-
-	id int64
-
-	mu   *sync.Mutex
-	data map[string]interface{}
-
-	protocol Protocol
 	handler  Handler
+	conn     net.Conn
+	wQueue   block.Queue[[]byte]
+	rErr     error
+	protocol Protocol
+	options  *SessionOption
 	hCond    *sync.Cond
-
-	closed bool
-
-	wQueue block.Queue[[]byte]
-	rErr   error
+	mu       *sync.Mutex
+	data     map[string]interface{}
+	id       int64
+	closed   bool
 }
 
 func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Session {
 	var ns = &rawSession{}
-	ns.SessionOption = NewSessionOption()
+	ns.options = NewSessionOption()
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
@@ -228,7 +220,7 @@ func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Optio
 
 	for _, opt := range opts {
 		if opt != nil {
-			opt(ns.SessionOption)
+			opt(ns.options)
 		}
 	}
 
@@ -236,15 +228,15 @@ func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Optio
 	ns.wQueue = block.New[[]byte]()
 
 	if tcpConn, ok := ns.conn.(*net.TCPConn); ok {
-		if ns.ReadBufferSize > 0 {
-			tcpConn.SetReadBuffer(ns.ReadBufferSize)
+		if ns.options.ReadBufferSize > 0 {
+			tcpConn.SetReadBuffer(ns.options.ReadBufferSize)
 		}
 
-		if ns.WriteBufferSize > 0 {
-			tcpConn.SetWriteBuffer(ns.WriteBufferSize)
+		if ns.options.WriteBufferSize > 0 {
+			tcpConn.SetWriteBuffer(ns.options.WriteBufferSize)
 		}
 
-		tcpConn.SetNoDelay(ns.NoDelay)
+		tcpConn.SetNoDelay(ns.options.NoDelay)
 	}
 
 	ns.run()
@@ -328,12 +320,12 @@ func (this *rawSession) readLoop(w *sync.WaitGroup) {
 
 	var nPacket Packet
 	var nHandler Handler
-	var nLimiter = this.Limiter
+	var nLimiter = this.options.Limiter
 
 ReadLoop:
 	for {
-		if this.ReadTimeout > 0 {
-			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
+		if this.options.ReadTimeout > 0 {
+			this.conn.SetReadDeadline(time.Now().Add(this.options.ReadTimeout))
 		}
 		nPacket, this.rErr = this.protocol.Unmarshal(this.conn)
 		if this.rErr != nil {
@@ -434,8 +426,8 @@ func (this *rawSession) Write(b []byte) (n int, err error) {
 
 	var total = len(b)
 	for pos := 0; pos < total; {
-		if this.WriteTimeout > 0 {
-			if err = this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout)); err != nil {
+		if this.options.WriteTimeout > 0 {
+			if err = this.conn.SetWriteDeadline(time.Now().Add(this.options.WriteTimeout)); err != nil {
 				return 0, err
 			}
 		}
@@ -458,9 +450,9 @@ func (this *rawSession) close(err error) {
 		return
 	}
 	var nHandler = this.handler
-	var nLimiter = this.Limiter
+	var nLimiter = this.options.Limiter
 	this.handler = nil
-	this.Limiter = nil
+	this.options.Limiter = nil
 	this.closed = true
 	this.mu.Unlock()
 

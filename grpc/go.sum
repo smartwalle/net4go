@@ -9,6 +9,8 @@ github.com/smartwalle/net4go v0.0.48 h1:AXkMjinht5poG4DXUVr0Q6pPQwrEFuPO6PF7Wtd3
 github.com/smartwalle/net4go v0.0.48/go.mod h1:6R+zGr2Ugz/voywQsiCAUWkb3ul9cvYjI+0potuaLNU=
 github.com/smartwalle/net4go v0.0.49 h1:9k9VrdnGNqUBiixo+PTy+hOHXFks736w2I6Ke+5b0q0=
 github.com/smartwalle/net4go v0.0.49/go.mod h1:YyLP5zmczM5D3k5PsvAwhxSBkulOwpjE/o44QSFtYAo=
+github.com/smartwalle/net4go v0.0.50 h1:X10B2Ky5vtSZtmE9uKOnYzJYDZH0zYL7JuehZbmJmwM=
+github.com/smartwalle/net4go v0.0.50/go.mod h1:/1/htyhliAVYvSEvAB9ueU8iWQfWvnMNtdPuTWz5FDY=
 github.com/smartwalle/queue v0.0.2 h1:vMi8pBDlTY1HtWI/utkDyroVC72cI0MggqC26zTGo4k=
 github.com/smartwalle/queue v0.0.2/go.mod h1:zMEHt/7zLtVwATDUQi3OdBUlbQ2XUzWd7OXP8p/684c=
 golang.org/x/sys v0.0.0-20190222072716-a9d3bda3a223 h1:DH4skfRX4EBpamg7iV4ZlCpblAHI6s6TDM39bFZumv8=

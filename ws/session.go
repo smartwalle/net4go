@@ -11,27 +11,18 @@ import (
 )
 
 type wsSession struct {
-	*net4go.SessionOption
+	protocol    net4go.Protocol
+	handler     net4go.Handler
+	wQueue      block.Queue[[]byte]
+	rErr        error
+	conn        *websocket.Conn
+	options     *net4go.SessionOption
+	hCond       *sync.Cond
+	mu          *sync.Mutex
+	data        map[string]interface{}
+	id          int64
 	messageType MessageType
-
-	conn *websocket.Conn
-
-	id int64
-
-	mu   *sync.Mutex
-	data map[string]interface{}
-
-	protocol net4go.Protocol
-	handler  net4go.Handler
-	hCond    *sync.Cond
-
-	closed bool
-
-	wQueue block.Queue[[]byte]
-	rErr   error
-
-	//pongWait   time.Duration
-	//pingPeriod time.Duration
+	closed      bool
 }
 
 type MessageType int
@@ -43,7 +34,7 @@ const (
 
 func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Session {
 	var ns = &wsSession{}
-	ns.SessionOption = net4go.NewSessionOption()
+	ns.options = net4go.NewSessionOption()
 	ns.messageType = messageType
 	ns.conn = conn
 	ns.protocol = protocol
@@ -57,7 +48,7 @@ func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.P
 
 	for _, opt := range opts {
 		if opt != nil {
-			opt(ns.SessionOption)
+			opt(ns.options)
 		}
 	}
 
@@ -141,19 +132,19 @@ func (this *wsSession) run() {
 }
 
 func (this *wsSession) readLoop(w *sync.WaitGroup) {
-	this.conn.SetReadLimit(int64(this.ReadBufferSize))
+	this.conn.SetReadLimit(int64(this.options.ReadBufferSize))
 
 	w.Done()
 
 	var nPacket net4go.Packet
 	var nHandler net4go.Handler
-	var nLimiter = this.Limiter
+	var nLimiter = this.options.Limiter
 	var msg []byte
 
 ReadLoop:
 	for {
-		if this.ReadTimeout > 0 {
-			this.conn.SetReadDeadline(time.Now().Add(this.ReadTimeout))
+		if this.options.ReadTimeout > 0 {
+			this.conn.SetReadDeadline(time.Now().Add(this.options.ReadTimeout))
 		}
 		_, msg, this.rErr = this.conn.ReadMessage()
 		if this.rErr != nil {
@@ -252,8 +243,8 @@ func (this *wsSession) Write(b []byte) (n int, err error) {
 		return
 	}
 
-	if this.WriteTimeout > 0 {
-		if err = this.conn.SetWriteDeadline(time.Now().Add(this.WriteTimeout)); err != nil {
+	if this.options.WriteTimeout > 0 {
+		if err = this.conn.SetWriteDeadline(time.Now().Add(this.options.WriteTimeout)); err != nil {
 			return 0, err
 		}
 	}
@@ -278,9 +269,9 @@ func (this *wsSession) close(err error) {
 		return
 	}
 	var nHandler = this.handler
-	var nLimiter = this.Limiter
+	var nLimiter = this.options.Limiter
 	this.handler = nil
-	this.Limiter = nil
+	this.options.Limiter = nil
 	this.closed = true
 	this.mu.Unlock()
 

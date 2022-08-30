@@ -6,7 +6,7 @@ import (
 )
 
 type Conn struct {
-	sess quic.Session
+	sess quic.Connection
 	quic.Stream
 }
 

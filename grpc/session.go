@@ -7,27 +7,21 @@ import (
 )
 
 type grpcSession struct {
-	*net4go.SessionOption
-
-	stream Stream
-
-	id int64
-
-	mu   *sync.Mutex
-	data map[string]interface{}
-
+	stream  Stream
+	wQueue  block.Queue[net4go.Packet]
+	rErr    error
 	handler net4go.Handler
+	options *net4go.SessionOption
+	data    map[string]interface{}
 	hCond   *sync.Cond
-
-	closed bool
-
-	wQueue block.Queue[net4go.Packet]
-	rErr   error
+	mu      *sync.Mutex
+	id      int64
+	closed  bool
 }
 
 func NewSession(stream Stream, handler net4go.Handler, opts ...net4go.Option) net4go.Session {
 	var ns = &grpcSession{}
-	ns.SessionOption = net4go.NewSessionOption()
+	ns.options = net4go.NewSessionOption()
 	ns.stream = stream
 	ns.handler = handler
 	ns.mu = &sync.Mutex{}
@@ -35,7 +29,7 @@ func NewSession(stream Stream, handler net4go.Handler, opts ...net4go.Option) ne
 
 	for _, opt := range opts {
 		if opt != nil {
-			opt(ns.SessionOption)
+			opt(ns.options)
 		}
 	}
 
@@ -124,7 +118,7 @@ func (this *grpcSession) readLoop(w *sync.WaitGroup) {
 
 	var nPacket net4go.Packet
 	var nHandler net4go.Handler
-	var nLimiter = this.Limiter
+	var nLimiter = this.options.Limiter
 
 ReadLoop:
 	for {
@@ -214,9 +208,9 @@ func (this *grpcSession) close(err error) {
 		return
 	}
 	var nHandler = this.handler
-	var nLimiter = this.Limiter
+	var nLimiter = this.options.Limiter
 	this.handler = nil
-	this.Limiter = nil
+	this.options.Limiter = nil
 	this.closed = true
 	this.mu.Unlock()
 
