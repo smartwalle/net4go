@@ -100,7 +100,7 @@ type Handler interface {
 	OnClose(Session, error)
 }
 
-type SessionOption struct {
+type SessionOptions struct {
 	Limiter         Limiter
 	WriteTimeout    time.Duration
 	ReadTimeout     time.Duration
@@ -109,8 +109,8 @@ type SessionOption struct {
 	NoDelay         bool
 }
 
-func NewSessionOption() *SessionOption {
-	var opt = &SessionOption{}
+func NewSessionOptions() *SessionOptions {
+	var opt = &SessionOptions{}
 	opt.WriteTimeout = -1
 	opt.ReadTimeout = -1
 
@@ -121,10 +121,10 @@ func NewSessionOption() *SessionOption {
 	return opt
 }
 
-type Option func(*SessionOption)
+type SessionOption func(*SessionOptions)
 
-func WithWriteTimeout(timeout time.Duration) Option {
-	return func(opt *SessionOption) {
+func WithWriteTimeout(timeout time.Duration) SessionOption {
+	return func(opt *SessionOptions) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -132,8 +132,8 @@ func WithWriteTimeout(timeout time.Duration) Option {
 	}
 }
 
-func WithReadTimeout(timeout time.Duration) Option {
-	return func(opt *SessionOption) {
+func WithReadTimeout(timeout time.Duration) SessionOption {
+	return func(opt *SessionOptions) {
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -141,8 +141,8 @@ func WithReadTimeout(timeout time.Duration) Option {
 	}
 }
 
-func WithReadBufferSize(size int) Option {
-	return func(opt *SessionOption) {
+func WithReadBufferSize(size int) SessionOption {
+	return func(opt *SessionOptions) {
 		//if size < 0 {
 		//	size = ConnReadBufferSize
 		//}
@@ -150,8 +150,8 @@ func WithReadBufferSize(size int) Option {
 	}
 }
 
-func WithWriteBufferSize(size int) Option {
-	return func(opt *SessionOption) {
+func WithWriteBufferSize(size int) SessionOption {
+	return func(opt *SessionOptions) {
 		//if size < 0 {
 		//	size = ConnWriteBufferSize
 		//}
@@ -159,14 +159,14 @@ func WithWriteBufferSize(size int) Option {
 	}
 }
 
-func WithNoDelay(noDelay bool) Option {
-	return func(opt *SessionOption) {
+func WithNoDelay(noDelay bool) SessionOption {
+	return func(opt *SessionOptions) {
 		opt.NoDelay = noDelay
 	}
 }
 
-func WithLimiter(limiter Limiter) Option {
-	return func(opt *SessionOption) {
+func WithLimiter(limiter Limiter) SessionOption {
+	return func(opt *SessionOptions) {
 		opt.Limiter = limiter
 	}
 }
@@ -201,7 +201,7 @@ type rawSession struct {
 	wQueue   block.Queue[[]byte]
 	rErr     error
 	protocol Protocol
-	options  *SessionOption
+	options  *SessionOptions
 	hCond    *sync.Cond
 	mu       *sync.Mutex
 	data     map[string]interface{}
@@ -209,9 +209,9 @@ type rawSession struct {
 	closed   bool
 }
 
-func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...Option) Session {
+func NewSession(conn net.Conn, protocol Protocol, handler Handler, opts ...SessionOption) Session {
 	var ns = &rawSession{}
-	ns.options = NewSessionOption()
+	ns.options = NewSessionOptions()
 	ns.conn = conn
 	ns.protocol = protocol
 	ns.handler = handler
