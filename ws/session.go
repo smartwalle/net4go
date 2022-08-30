@@ -16,7 +16,7 @@ type wsSession struct {
 	wQueue      block.Queue[[]byte]
 	rErr        error
 	conn        *websocket.Conn
-	options     *net4go.SessionOption
+	options     *net4go.SessionOptions
 	hCond       *sync.Cond
 	mu          *sync.Mutex
 	data        map[string]interface{}
@@ -32,9 +32,9 @@ const (
 	Binary
 )
 
-func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.Option) net4go.Session {
+func NewSession(conn *websocket.Conn, messageType MessageType, protocol net4go.Protocol, handler net4go.Handler, opts ...net4go.SessionOption) net4go.Session {
 	var ns = &wsSession{}
-	ns.options = net4go.NewSessionOption()
+	ns.options = net4go.NewSessionOptions()
 	ns.messageType = messageType
 	ns.conn = conn
 	ns.protocol = protocol

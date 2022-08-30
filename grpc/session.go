@@ -11,7 +11,7 @@ type grpcSession struct {
 	wQueue  block.Queue[net4go.Packet]
 	rErr    error
 	handler net4go.Handler
-	options *net4go.SessionOption
+	options *net4go.SessionOptions
 	data    map[string]interface{}
 	hCond   *sync.Cond
 	mu      *sync.Mutex
@@ -19,9 +19,9 @@ type grpcSession struct {
 	closed  bool
 }
 
-func NewSession(stream Stream, handler net4go.Handler, opts ...net4go.Option) net4go.Session {
+func NewSession(stream Stream, handler net4go.Handler, opts ...net4go.SessionOption) net4go.Session {
 	var ns = &grpcSession{}
-	ns.options = net4go.NewSessionOption()
+	ns.options = net4go.NewSessionOptions()
 	ns.stream = stream
 	ns.handler = handler
 	ns.mu = &sync.Mutex{}
