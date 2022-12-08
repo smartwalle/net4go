@@ -2,7 +2,7 @@ package net4go
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -20,7 +20,7 @@ func GetExternalIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	content, err := ioutil.ReadAll(rsp.Body)
+	content, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return "", err
 	}
